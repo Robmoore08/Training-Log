@@ -1,0 +1,759 @@
+import { useState, useEffect } from "react";
+
+const RUN_TYPES = ["Easy", "Tempo", "Long"];
+
+const SHOES = ["Kayano 31", "Other"];
+
+const WEEK_START = 1; // Monday (0=Sun, 1=Mon)
+
+const WEATHER = ["Sunny", "Cloudy", "Rain", "Cold", "Hot", "Windy", "Indoor"];
+
+const emptyRun = (type) => ({
+  id: null,
+  type,
+  date: new Date().toISOString().slice(0, 10),
+  indoor: false,
+  time: "",
+  distance: "",
+  avgHR: "",
+  maxHR: "",
+  avgCadence: "",
+  avgPace: "",
+  elevationGain: "",
+  avgKph: "",
+  splits: ["", "", "", "", ""],
+  shoe: "",
+  weather: "",
+  rpe: "",
+  comments: "",
+});
+
+const STORAGE_KEY = "robbie_training_log";
+const API_URL = "https://script.google.com/macros/s/AKfycbwKTn0YeNFLWEzn-gKkwy4KjowDtAdYoU4syog3CX6Z9qEGM6iAlCB8MwhwTrDXOYQ/exec";
+
+function loadRuns() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRuns(runs) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(runs));
+}
+
+async function fetchRunsFromSheet() {
+  try {
+    const res = await fetch(`${API_URL}?action=getRuns`);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      const runs = data.map(r => ({
+        ...r,
+        splits: typeof r.splits === "string" ? JSON.parse(r.splits || "[]") : (r.splits || []),
+        indoor: r.indoor === true || r.indoor === "TRUE" || r.indoor === "true",
+      }));
+      saveRuns(runs);
+      return runs;
+    }
+    return loadRuns();
+  } catch {
+    return loadRuns();
+  }
+}
+
+async function saveRunToSheet(run) {
+  try {
+    await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "saveRun", run }),
+    });
+  } catch (e) {
+    console.error("Failed to save to sheet", e);
+  }
+}
+
+async function deleteRunFromSheet(id) {
+  try {
+    await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "deleteRun", id }),
+    });
+  } catch (e) {
+    console.error("Failed to delete from sheet", e);
+  }
+}
+
+const RACE_DATE = new Date("2026-10-25");
+
+function daysToRace() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((RACE_DATE - today) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 0;
+}
+
+function shoeKm(runs) {
+  const totals = {};
+  SHOES.forEach((s) => { totals[s] = 0; });
+  runs.forEach((r) => {
+    if (r.shoe && r.distance) totals[r.shoe] = (totals[r.shoe] || 0) + parseFloat(r.distance);
+  });
+  return totals;
+}
+
+function getWeeklyKm(runs) {
+  const weeks = {};
+  runs.forEach((r) => {
+    if (!r.distance || !r.date) return;
+    const d = new Date(r.date + "T00:00:00");
+    const day = d.getDay(); // 0=Sun
+    const diff = (day - WEEK_START + 7) % 7;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - diff);
+    const key = monday.toISOString().slice(0, 10);
+    weeks[key] = (weeks[key] || 0) + parseFloat(r.distance);
+  });
+  return weeks;
+}
+
+function kphToAdjustedPace(kph) {
+  // Convert treadmill kph at 1% incline to equivalent outdoor min:sec/km pace
+  // 1% incline adds ~0.5% to oxygen cost; we subtract that from speed equivalence
+  // Adjusted speed = kph * 1.005 (slightly faster equivalent on flat)
+  if (!kph || isNaN(parseFloat(kph))) return "";
+  const adjustedKph = parseFloat(kph) * 1.005;
+  const secPerKm = 3600 / adjustedKph;
+  const mins = Math.floor(secPerKm / 60);
+  const secs = Math.round(secPerKm % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+function paceToSeconds(pace) {
+  if (!pace) return null;
+  const parts = pace.split(":");
+  if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  return null;
+}
+
+function secondsToPace(s) {
+  if (!s) return "--";
+  const m = Math.floor(s / 60);
+  const sec = Math.round(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function StatBadge({ label, value, unit = "" }) {
+  return (
+    <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80 }}>
+      <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>
+        {value || <span style={{ color: "#334" }}>--</span>}
+        {value && unit && <span style={{ fontSize: 13, color: "#7a9bb5", marginLeft: 2 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+function MiniChart({ runs, field, label, unit = "", transform, reverse }) {
+  const vals = runs
+    .slice(-10)
+    .map((r) => ({ date: r.date, val: transform ? transform(r[field]) : parseFloat(r[field]) }))
+    .filter((d) => d.val !== null && !isNaN(d.val));
+
+  if (vals.length < 2) return null;
+
+  const min = Math.min(...vals.map((d) => d.val));
+  const max = Math.max(...vals.map((d) => d.val));
+  const range = max - min || 1;
+  const W = 280, H = 70, PAD = 8;
+
+  const pts = vals.map((d, i) => {
+    const x = PAD + (i / (vals.length - 1)) * (W - PAD * 2);
+    const norm = (d.val - min) / range;
+    const y = PAD + (reverse ? norm : 1 - norm) * (H - PAD * 2);
+    return `${x},${y}`;
+  });
+
+  const latest = vals[vals.length - 1];
+  const prev = vals[vals.length - 2];
+  const trend = reverse
+    ? latest.val < prev.val ? "↓" : latest.val > prev.val ? "↑" : "→"
+    : latest.val > prev.val ? "↑" : latest.val < prev.val ? "↓" : "→";
+  const trendColor = reverse
+    ? latest.val < prev.val ? "#4ade80" : "#f87171"
+    : latest.val > prev.val ? "#4ade80" : "#f87171";
+
+  return (
+    <div style={{ background: "#0f1923", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: trendColor }}>{trend} {unit === "min/km" ? secondsToPace(latest.val) : latest.val.toFixed(1)}{unit !== "min/km" ? unit : ""}</span>
+      </div>
+      <svg width={W} height={H} style={{ overflow: "visible" }}>
+        <polyline points={pts.join(" ")} fill="none" stroke="#3b7dd8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {vals.map((d, i) => {
+          const x = PAD + (i / (vals.length - 1)) * (W - PAD * 2);
+          const norm = (d.val - min) / range;
+          const y = PAD + (reverse ? norm : 1 - norm) * (H - PAD * 2);
+          return <circle key={i} cx={x} cy={y} r={3} fill="#3b7dd8" />;
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function RunCard({ run, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasSplits = run.splits?.some((s) => s);
+  return (
+    <div style={{ background: "#111d2b", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #1e3048" }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer" }}
+      >
+        <span style={{ fontSize: 12, color: "#7a9bb5", minWidth: 80 }}>{run.date}</span>
+        <span style={{ fontSize: 13, color: "#e8f4ff", flex: 1, fontWeight: 600 }}>
+          {run.distance ? `${run.distance} km` : "—"} · {run.time || "—"}
+          {run.indoor && <span style={{ marginLeft: 6, fontSize: 11, color: "#7a9bb5", background: "#1e3048", borderRadius: 4, padding: "1px 6px" }}>Indoor</span>}
+        </span>
+        <span style={{ fontSize: 12, color: "#7a9bb5" }}>{run.avgPace ? `${run.avgPace}/km` : ""}</span>
+        <span style={{ fontSize: 14, color: "#3b7dd8" }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+      {expanded && (
+        <div style={{ padding: "0 14px 14px", borderTop: "1px solid #1e3048" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <StatBadge label="Avg HR" value={run.avgHR} unit="bpm" />
+            <StatBadge label="Max HR" value={run.maxHR} unit="bpm" />
+            <StatBadge label="Cadence" value={run.avgCadence} unit="spm" />
+            <StatBadge label="Elevation" value={run.elevationGain} unit="m" />
+            {run.rpe && <StatBadge label="RPE" value={`${run.rpe}/10`} />}
+          </div>
+          {hasSplits && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Splits</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {run.splits.filter((s) => s).map((s, i) => (
+                  <div key={i} style={{ background: "#0f1923", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e8f4ff", fontFamily: "monospace" }}>
+                    {i + 1}: {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {run.shoe && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "#7a9bb5" }}>
+              👟 <span style={{ color: "#c8dff5" }}>{run.shoe}</span>
+              {run.weather && <span style={{ marginLeft: 12 }}>🌤 {run.weather}</span>}
+            </div>
+          )}
+          {run.comments && (
+            <div style={{ marginTop: 10, fontSize: 13, color: "#b0cae0", background: "#0f1923", borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
+              {run.comments}
+            </div>
+          )}
+          <button
+            onClick={() => onDelete(run.id)}
+            style={{ marginTop: 12, background: "none", border: "1px solid #3b2030", color: "#f87171", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
+          >
+            Delete run
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RunForm({ type, onSave, onCancel }) {
+  const [form, setForm] = useState(emptyRun(type));
+
+  const set = (field, val) => setForm((f) => ({ ...f, [field]: val }));
+  const setSplit = (i, val) => {
+    const splits = [...form.splits];
+    splits[i] = val;
+    setForm((f) => ({ ...f, splits }));
+  };
+
+  const handleSave = () => {
+    if (!form.date || !form.distance) return alert("Date and distance are required.");
+    const finalForm = { ...form, id: Date.now() };
+    // If indoor, convert treadmill kph to outdoor-equivalent pace
+    if (form.indoor && form.avgKph) {
+      finalForm.avgPace = kphToAdjustedPace(form.avgKph);
+    }
+    onSave(finalForm);
+  };
+
+  const inputStyle = {
+    background: "#0f1923",
+    border: "1px solid #1e3048",
+    borderRadius: 6,
+    color: "#e8f4ff",
+    padding: "7px 10px",
+    fontSize: 13,
+    width: "100%",
+    boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, display: "block" };
+  const fieldStyle = { marginBottom: 14 };
+
+  return (
+    <div style={{ background: "#111d2b", borderRadius: 12, padding: 18, border: "1px solid #1e3048" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#3b7dd8", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        + New {type} Run
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Date</label>
+          <input type="date" style={inputStyle} value={form.date} onChange={(e) => set("date", e.target.value)} />
+        </div>
+        <div style={{ ...fieldStyle, display: "flex", alignItems: "center", gap: 8, paddingTop: 18 }}>
+          <input type="checkbox" id="indoor" checked={form.indoor} onChange={(e) => set("indoor", e.target.checked)} style={{ accentColor: "#3b7dd8" }} />
+          <label htmlFor="indoor" style={{ ...labelStyle, marginBottom: 0, textTransform: "none", fontSize: 13, color: "#c8dff5" }}>Indoor</label>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Distance (km)</label>
+          <input type="number" step="0.01" style={inputStyle} value={form.distance} onChange={(e) => set("distance", e.target.value)} placeholder="e.g. 10.5" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Time (hh:mm:ss)</label>
+          <input type="text" style={inputStyle} value={form.time} onChange={(e) => set("time", e.target.value)} placeholder="e.g. 1:02:30" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Avg Pace (min:sec/km)</label>
+          <input type="text" style={inputStyle} value={form.avgPace} onChange={(e) => set("avgPace", e.target.value)} placeholder="e.g. 5:45" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Elevation Gain (m)</label>
+          <input type="number" style={inputStyle} value={form.elevationGain} onChange={(e) => set("elevationGain", e.target.value)} placeholder="e.g. 85" />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Avg HR (bpm)</label>
+          <input type="number" style={inputStyle} value={form.avgHR} onChange={(e) => set("avgHR", e.target.value)} placeholder="e.g. 142" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Max HR (bpm)</label>
+          <input type="number" style={inputStyle} value={form.maxHR} onChange={(e) => set("maxHR", e.target.value)} placeholder="e.g. 168" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Avg Cadence (spm)</label>
+          <input type="number" style={inputStyle} value={form.avgCadence} onChange={(e) => set("avgCadence", e.target.value)} placeholder="e.g. 174" />
+        </div>
+      </div>
+
+      {form.indoor && (
+        <div style={fieldStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <label style={labelStyle}>Treadmill Speed (kph)</label>
+            {form.avgKph && (
+              <span style={{ fontSize: 11, color: "#3b7dd8" }}>
+                → {kphToAdjustedPace(form.avgKph)} /km (outdoor equiv.)
+              </span>
+            )}
+          </div>
+          <input type="number" step="0.1" style={{ ...inputStyle, borderColor: "#3b7dd8" }} value={form.avgKph} onChange={(e) => set("avgKph", e.target.value)} placeholder="e.g. 10.5" />
+          <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 4 }}>Adjusted for 1% incline · saved as outdoor-equivalent pace</div>
+        </div>
+      )}
+
+      {type === "Tempo" && (
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Splits (min:sec/km)</label>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+            {form.splits.map((s, i) => (
+              <div key={i}>
+                <div style={{ fontSize: 10, color: "#5a7a94", textAlign: "center", marginBottom: 3 }}>km {i + 1}</div>
+                <input type="text" style={inputStyle} value={s} onChange={(e) => setSplit(i, e.target.value)} placeholder="5:30" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Shoe</label>
+          <select style={inputStyle} value={form.shoe} onChange={(e) => set("shoe", e.target.value)}>
+            <option value="">Select...</option>
+            {SHOES.map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Weather</label>
+          <select style={inputStyle} value={form.weather} onChange={(e) => set("weather", e.target.value)}>
+            <option value="">Select...</option>
+            {WEATHER.map((w) => <option key={w}>{w}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={fieldStyle}>
+        <label style={labelStyle}>RPE — How hard did it feel? (1–10)</label>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[1,2,3,4,5,6,7,8,9,10].map((n) => {
+            const color = n <= 3 ? "#22c55e" : n <= 5 ? "#84cc16" : n <= 7 ? "#f59e0b" : "#f87171";
+            const selected = form.rpe === String(n);
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => set("rpe", selected ? "" : String(n))}
+                style={{
+                  width: 36, height: 36, borderRadius: 8, border: `2px solid ${selected ? color : "#1e3048"}`,
+                  background: selected ? color + "22" : "none", color: selected ? color : "#5a7a94",
+                  fontSize: 14, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 5 }}>
+          1–3 easy · 4–5 moderate · 6–7 hard · 8–9 very hard · 10 max
+        </div>
+      </div>
+
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Comments</label>
+        <textarea style={{ ...inputStyle, height: 70, resize: "vertical" }} value={form.comments} onChange={(e) => set("comments", e.target.value)} placeholder="How did it feel? Any notes..." />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+        <button onClick={handleSave} style={{ flex: 1, background: "#3b7dd8", color: "#fff", border: "none", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em" }}>
+          Save Run
+        </button>
+        <button onClick={onCancel} style={{ background: "none", border: "1px solid #1e3048", color: "#7a9bb5", borderRadius: 8, padding: "10px 16px", fontSize: 14, cursor: "pointer" }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RunTypePanel({ type, runs }) {
+  const [adding, setAdding] = useState(false);
+  const [allRuns, setAllRuns] = useState(runs);
+
+  useEffect(() => { setAllRuns(runs); }, [runs]);
+
+  const handleSave = async (run) => {
+    const all = loadRuns();
+    all.push(run);
+    saveRuns(all);
+    setAllRuns(all.filter((r) => r.type === type));
+    setAdding(false);
+    window.dispatchEvent(new Event("runs-updated"));
+    await saveRunToSheet(run);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this run?")) return;
+    const all = loadRuns().filter((r) => r.id !== id);
+    saveRuns(all);
+    setAllRuns(all.filter((r) => r.type === type));
+    window.dispatchEvent(new Event("runs-updated"));
+    await deleteRunFromSheet(id);
+  };
+
+  const typeRuns = allRuns.filter((r) => r.type === type).sort((a, b) => b.date.localeCompare(a.date));
+
+  const avg = (field) => {
+    const vals = typeRuns.map((r) => parseFloat(r[field])).filter((v) => !isNaN(v));
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+  };
+
+  const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+  const color = typeColors[type];
+
+  return (
+    <div>
+      {/* Summary bar */}
+      {typeRuns.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+            Averages across {typeRuns.length} {type.toLowerCase()} run{typeRuns.length !== 1 ? "s" : ""}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <StatBadge label="Avg HR" value={avg("avgHR")} unit="bpm" />
+            <StatBadge label="Cadence" value={avg("avgCadence")} unit="spm" />
+            <StatBadge label="Distance" value={avg("distance")} unit="km" />
+            <StatBadge label="Elevation" value={avg("elevationGain")} unit="m" />
+          </div>
+        </div>
+      )}
+
+      {/* Trend charts */}
+      {typeRuns.length >= 2 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
+          <MiniChart runs={[...typeRuns].reverse()} field="avgHR" label="Avg HR" unit="bpm" />
+          <MiniChart runs={[...typeRuns].reverse()} field="avgCadence" label="Cadence" unit="spm" />
+          <MiniChart runs={[...typeRuns].reverse()} field="avgPace" label="Avg Pace" unit="min/km" transform={paceToSeconds} reverse={true} />
+        </div>
+      )}
+
+      {/* Add button */}
+      {!adding && (
+        <button
+          onClick={() => setAdding(true)}
+          style={{ width: "100%", background: "none", border: `1.5px dashed ${color}`, color: color, borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 16, letterSpacing: "0.05em" }}
+        >
+          + Log {type} Run
+        </button>
+      )}
+
+      {adding && <div style={{ marginBottom: 16 }}><RunForm type={type} onSave={handleSave} onCancel={() => setAdding(false)} /></div>}
+
+      {/* Run history */}
+      {typeRuns.length === 0 && !adding && (
+        <div style={{ textAlign: "center", color: "#3a5068", padding: "40px 0", fontSize: 14 }}>
+          No {type.toLowerCase()} runs logged yet. Add your first one above.
+        </div>
+      )}
+      {typeRuns.map((r) => <RunCard key={r.id} run={r} onDelete={handleDelete} />)}
+    </div>
+  );
+}
+
+function SummaryPanel({ runs }) {
+  const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+  const weeklyKms = getWeeklyKm(runs);
+
+  // Build last 12 weeks of data
+  const today = new Date();
+  const todayDay = today.getDay();
+  const diff = (todayDay - WEEK_START + 7) % 7;
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() - diff);
+
+  const weeks = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(thisMonday);
+    d.setDate(thisMonday.getDate() - i * 7);
+    const key = d.toISOString().slice(0, 10);
+    const label = `${d.getDate()}/${d.getMonth() + 1}`;
+    const km = weeklyKms[key] || 0;
+
+    // km by type
+    const byType = { Easy: 0, Tempo: 0, Long: 0 };
+    runs.forEach((r) => {
+      if (!r.distance || !r.date) return;
+      const rd = new Date(r.date + "T00:00:00");
+      const rdDay = rd.getDay();
+      const rdDiff = (rdDay - WEEK_START + 7) % 7;
+      const rdMonday = new Date(rd);
+      rdMonday.setDate(rd.getDate() - rdDiff);
+      if (rdMonday.toISOString().slice(0, 10) === key) {
+        byType[r.type] = (byType[r.type] || 0) + parseFloat(r.distance);
+      }
+    });
+
+    weeks.push({ key, label, km, byType });
+  }
+
+  const maxKm = Math.max(...weeks.map((w) => w.km), 10);
+  const totalRuns = runs.length;
+  const totalKm = runs.reduce((a, r) => a + (parseFloat(r.distance) || 0), 0);
+  const avgKmPerRun = totalRuns ? (totalKm / totalRuns).toFixed(1) : 0;
+
+  // Avg RPE by type
+  const rpeByType = {};
+  ["Easy", "Tempo", "Long"].forEach((t) => {
+    const typed = runs.filter((r) => r.type === t && r.rpe);
+    rpeByType[t] = typed.length ? (typed.reduce((a, r) => a + parseInt(r.rpe), 0) / typed.length).toFixed(1) : null;
+  });
+
+  // Recent 4 weeks trend
+  const recent4 = weeks.slice(-4).map((w) => w.km);
+  const trend = recent4.length >= 2 ? recent4[recent4.length - 1] - recent4[0] : 0;
+
+  return (
+    <div>
+      {/* Top stats */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <StatBadge label="Total Runs" value={totalRuns} />
+        <StatBadge label="Total km" value={totalKm.toFixed(1)} />
+        <StatBadge label="Avg km/run" value={avgKmPerRun} />
+        <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80 }}>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>4wk trend</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: trend >= 0 ? "#4ade80" : "#f87171", fontFamily: "monospace" }}>
+            {trend >= 0 ? "+" : ""}{trend.toFixed(1)}
+          </div>
+        </div>
+      </div>
+
+      {/* Weekly bar chart */}
+      <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
+        <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Weekly km — last 12 weeks</div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 100 }}>
+          {weeks.map((w, i) => {
+            const isThisWeek = i === weeks.length - 1;
+            const barH = w.km ? Math.max((w.km / maxKm) * 88, 4) : 0;
+            // Stacked segments
+            const easyH = w.byType.Easy ? (w.byType.Easy / maxKm) * 88 : 0;
+            const tempoH = w.byType.Tempo ? (w.byType.Tempo / maxKm) * 88 : 0;
+            const longH = w.byType.Long ? (w.byType.Long / maxKm) * 88 : 0;
+            return (
+              <div key={w.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <div style={{ fontSize: 9, color: isThisWeek ? "#e8f4ff" : "#3a5068", fontWeight: isThisWeek ? 700 : 400 }}>
+                  {w.km > 0 ? w.km.toFixed(0) : ""}
+                </div>
+                <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: 88, gap: 1 }}>
+                  {longH > 0 && <div style={{ height: longH, background: typeColors.Long, borderRadius: 2, opacity: isThisWeek ? 1 : 0.7 }} />}
+                  {tempoH > 0 && <div style={{ height: tempoH, background: typeColors.Tempo, borderRadius: 2, opacity: isThisWeek ? 1 : 0.7 }} />}
+                  {easyH > 0 && <div style={{ height: easyH, background: typeColors.Easy, borderRadius: 2, opacity: isThisWeek ? 1 : 0.7 }} />}
+                  {w.km === 0 && <div style={{ height: 3, background: "#1e3048", borderRadius: 2 }} />}
+                </div>
+                <div style={{ fontSize: 8, color: isThisWeek ? "#7a9bb5" : "#2a3f54", textAlign: "center" }}>{w.label}</div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Legend */}
+        <div style={{ display: "flex", gap: 12, marginTop: 10, justifyContent: "center" }}>
+          {Object.entries(typeColors).map(([t, c]) => (
+            <div key={t} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#7a9bb5" }}>
+              <div style={{ width: 8, height: 8, background: c, borderRadius: 2 }} />{t}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* RPE by type */}
+      {Object.values(rpeByType).some(Boolean) && (
+        <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Avg RPE by run type</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["Easy", "Tempo", "Long"].map((t) => rpeByType[t] && (
+              <div key={t} style={{ flex: 1, textAlign: "center", background: "#111d2b", borderRadius: 8, padding: "10px 8px", border: `1px solid ${typeColors[t]}33` }}>
+                <div style={{ fontSize: 11, color: typeColors[t], marginBottom: 4 }}>{t}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>{rpeByType[t]}</div>
+                <div style={{ fontSize: 10, color: "#5a7a94" }}>/10</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {runs.length === 0 && (
+        <div style={{ textAlign: "center", color: "#3a5068", padding: "40px 0", fontSize: 14 }}>
+          No runs logged yet. Start logging to see your summary.
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState("Easy");
+  const [runs, setRuns] = useState(loadRuns());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRunsFromSheet().then((r) => {
+      setRuns(r);
+      setLoading(false);
+    });
+    const handler = () => setRuns(loadRuns());
+    window.addEventListener("runs-updated", handler);
+    return () => window.removeEventListener("runs-updated", handler);
+  }, []);
+
+  const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+  const totalKm = runs.reduce((a, r) => a + (parseFloat(r.distance) || 0), 0);
+  const days = daysToRace();
+  const shoeKms = shoeKm(runs);
+  const SHOE_LIMIT = 700;
+  const weeklyKms = getWeeklyKm(runs);
+
+  // Current week key (Monday)
+  const todayD = new Date();
+  const todayDay = todayD.getDay();
+  const diff = (todayDay - WEEK_START + 7) % 7;
+  const thisMonday = new Date(todayD);
+  thisMonday.setDate(todayD.getDate() - diff);
+  const thisWeekKey = thisMonday.toISOString().slice(0, 10);
+  const thisWeekKm = weeklyKms[thisWeekKey] || 0;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#08111a", color: "#e8f4ff", fontFamily: "'Inter', system-ui, sans-serif" }}>
+      {/* Header */}
+      <div style={{ background: "#0b1825", borderBottom: "1px solid #1e3048", padding: "16px 20px 0" }}>
+        <div style={{ maxWidth: 560, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#e8f4ff", letterSpacing: "-0.02em" }}>Training Log</div>
+              <div style={{ fontSize: 12, color: "#7a9bb5", marginTop: 2 }}>
+                Niagara Falls Marathon · Oct 25, 2026
+                {loading && <span style={{ marginLeft: 8, color: "#3b7dd8" }}>⟳ syncing...</span>}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: days < 30 ? "#f87171" : days < 60 ? "#f59e0b" : "#3b7dd8", fontFamily: "monospace" }}>{days}</div>
+              <div style={{ fontSize: 10, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em" }}>Days to race</div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 12, fontSize: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ color: "#7a9bb5" }}>This week: <span style={{ color: "#e8f4ff", fontWeight: 600 }}>{thisWeekKm.toFixed(1)} km</span></div>
+            <div style={{ color: "#2a3f54" }}>|</div>
+            <div style={{ color: "#7a9bb5" }}>Total: <span style={{ color: "#e8f4ff", fontWeight: 600 }}>{totalKm.toFixed(1)} km</span></div>
+            <div style={{ color: "#2a3f54" }}>|</div>
+            {SHOES.filter(s => s !== "Other").map((shoe) => {
+              const km = shoeKms[shoe] || 0;
+              const pct = Math.min(km / SHOE_LIMIT, 1);
+              const warn = pct > 0.85;
+              const shortName = shoe.replace("Kayano ", "K");
+              return (
+                <div key={shoe} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ color: warn ? "#f59e0b" : "#7a9bb5" }}>👟 {shortName}</span>
+                  <div style={{ width: 40, height: 4, background: "#1e3048", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ width: `${pct * 100}%`, height: "100%", background: warn ? "#f59e0b" : "#3b7dd8", borderRadius: 2 }} />
+                  </div>
+                  <span style={{ color: warn ? "#f59e0b" : "#5a7a94", fontSize: 11 }}>{km.toFixed(0)} km</span>
+                </div>
+              );
+            })}
+          </div>
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {[...RUN_TYPES, "Summary"].map((t) => {
+              const count = RUN_TYPES.includes(t) ? runs.filter((r) => r.type === t).length : null;
+              const active = activeTab === t;
+              const color = t === "Summary" ? "#38bdf8" : typeColors[t];
+              return (
+                <button
+                  key={t}
+                  onClick={() => setActiveTab(t)}
+                  style={{
+                    flex: 1, background: "none", border: "none", borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
+                    color: active ? color : "#5a7a94", padding: "8px 4px 10px", fontSize: 13, fontWeight: active ? 700 : 500,
+                    cursor: "pointer", transition: "all 0.15s",
+                  }}
+                >
+                  {t} {count > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>({count})</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 16px 40px" }}>
+        {activeTab === "Summary" && <SummaryPanel runs={runs} />}
+        {activeTab !== "Summary" && <RunTypePanel key={activeTab} type={activeTab} runs={runs.filter((r) => r.type === activeTab)} />}
+      </div>
+    </div>
+  );
+}
