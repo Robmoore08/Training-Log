@@ -28,7 +28,6 @@ const SHOES = ["Kayano 31", "Other"];
 
 const WEEK_START = 1; // Monday (0=Sun, 1=Mon)
 
-const WEATHER = ["Sunny", "Cloudy", "Rain", "Cold", "Hot", "Windy", "Indoor"];
 
 const emptyRun = (type) => ({
   id: null,
@@ -45,7 +44,8 @@ const emptyRun = (type) => ({
   avgKph: "",
   splits: ["", "", "", "", ""],
   shoe: "",
-  weather: "",
+  temperature: "",
+  humidity: "",
   rpe: "",
   comments: "",
 });
@@ -155,7 +155,17 @@ function getWeeklyKm(runs) {
   return weeks;
 }
 
-function kphToAdjustedPace(kph) {
+function getHRZone(hr) {
+  const h = parseInt(hr);
+  if (!h) return null;
+  if (h < 108) return { zone: "Z1", label: "Recovery", color: "#60a5fa" };
+  if (h < 130) return { zone: "Z2", label: "Easy/Aerobic", color: "#4ade80" };
+  if (h < 148) return { zone: "Z3", label: "Steady/Long Run", color: "#facc15" };
+  if (h < 162) return { zone: "Z4", label: "Marathon Zone", color: "#f97316" };
+  return { zone: "Z5", label: "Max/Intervals", color: "#f87171" };
+}
+
+
   // Convert treadmill kph at 1% incline to equivalent outdoor min:sec/km pace
   // 1% incline adds ~0.5% to oxygen cost; we subtract that from speed equivalence
   // Adjusted speed = kph * 1.005 (slightly faster equivalent on flat)
@@ -266,6 +276,17 @@ function RunCard({ run, onDelete }) {
             <StatBadge label="Cadence" value={run.avgCadence} unit="spm" />
             <StatBadge label="Elevation" value={run.elevationGain} unit="m" />
             {run.rpe && <StatBadge label="RPE" value={`${run.rpe}/10`} />}
+            {run.avgHR && (() => {
+              const z = getHRZone(run.avgHR);
+              return z ? (
+                <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80, border: `1px solid ${z.color}44` }}>
+                  <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Zone</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: z.color }}>{z.zone}</div>
+                  <div style={{ fontSize: 10, color: z.color, opacity: 0.8 }}>{z.label}</div>
+                </div>
+              ) : null;
+            })()}
+          </div>
           </div>
           {hasSplits && (
             <div style={{ marginTop: 12 }}>
@@ -282,7 +303,8 @@ function RunCard({ run, onDelete }) {
           {run.shoe && (
             <div style={{ marginTop: 10, fontSize: 12, color: "#7a9bb5" }}>
               👟 <span style={{ color: "#c8dff5" }}>{run.shoe}</span>
-              {run.weather && <span style={{ marginLeft: 12 }}>🌤 {run.weather}</span>}
+              {run.temperature && <span style={{ marginLeft: 12 }}>🌡 {run.temperature}°C</span>}
+              {run.humidity && <span style={{ marginLeft: 8 }}>💧 {run.humidity}%</span>}
             </div>
           )}
           {run.comments && (
@@ -373,7 +395,13 @@ function RunForm({ type, onSave, onCancel }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div style={fieldStyle}>
-          <label style={labelStyle}>Avg HR (bpm)</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <label style={labelStyle}>Avg HR (bpm)</label>
+            {form.avgHR && (() => {
+              const z = getHRZone(form.avgHR);
+              return z ? <span style={{ fontSize: 11, color: z.color, fontWeight: 700 }}>{z.zone} · {z.label}</span> : null;
+            })()}
+          </div>
           <input type="number" style={inputStyle} value={form.avgHR} onChange={(e) => set("avgHR", e.target.value)} placeholder="e.g. 142" />
         </div>
         <div style={fieldStyle}>
@@ -415,7 +443,7 @@ function RunForm({ type, onSave, onCancel }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div style={fieldStyle}>
           <label style={labelStyle}>Shoe</label>
           <select style={inputStyle} value={form.shoe} onChange={(e) => set("shoe", e.target.value)}>
@@ -424,11 +452,12 @@ function RunForm({ type, onSave, onCancel }) {
           </select>
         </div>
         <div style={fieldStyle}>
-          <label style={labelStyle}>Weather</label>
-          <select style={inputStyle} value={form.weather} onChange={(e) => set("weather", e.target.value)}>
-            <option value="">Select...</option>
-            {WEATHER.map((w) => <option key={w}>{w}</option>)}
-          </select>
+          <label style={labelStyle}>Temp (°C)</label>
+          <input type="number" style={inputStyle} value={form.temperature} onChange={(e) => set("temperature", e.target.value)} placeholder="e.g. 18" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Humidity (%)</label>
+          <input type="number" style={inputStyle} value={form.humidity} onChange={(e) => set("humidity", e.target.value)} placeholder="e.g. 65" />
         </div>
       </div>
 
