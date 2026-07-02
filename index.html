@@ -165,7 +165,7 @@ function getHRZone(hr) {
   return { zone: "Z5", label: "Max/Intervals", color: "#f87171" };
 }
 
-
+function kphToAdjustedPace(kph) {
   // Convert treadmill kph at 1% incline to equivalent outdoor min:sec/km pace
   // 1% incline adds ~0.5% to oxygen cost; we subtract that from speed equivalence
   // Adjusted speed = kph * 1.005 (slightly faster equivalent on flat)
@@ -286,7 +286,6 @@ function RunCard({ run, onDelete }) {
                 </div>
               ) : null;
             })()}
-          </div>
           </div>
           {hasSplits && (
             <div style={{ marginTop: 12 }}>
