@@ -8,24 +8,24 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    if (req.method === "GET") {
-      const { action, run, id } = req.query;
-      let url = `${SHEET_URL}?action=${action}`;
-      if (run) url += `&run=${run}`;
-      if (id) url += `&id=${id}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      return res.status(200).json(data);
-    }
+    const { action, run, id } = req.query;
+    let url = `${SHEET_URL}?action=${action}`;
+    if (run) url += `&run=${encodeURIComponent(run)}`;
+    if (id) url += `&id=${id}`;
 
-    if (req.method === "POST") {
-      const response = await fetch(SHEET_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req.body),
-      });
-      const data = await response.json();
+    const response = await fetch(url, {
+      redirect: "follow",
+      headers: { "Accept": "application/json" }
+    });
+
+    const text = await response.text();
+    
+    // Try to parse as JSON, return raw text if it fails
+    try {
+      const data = JSON.parse(text);
       return res.status(200).json(data);
+    } catch {
+      return res.status(200).send(text);
     }
   } catch (err) {
     return res.status(500).json({ error: err.message });
