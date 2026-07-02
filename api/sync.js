@@ -1,4 +1,4 @@
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbwKTn0YeNFLWEzn-gKkwy4KjowDtAdYoU4syog3CX6Z9qEGM6iAlCB8MwhwTrDXOYQ/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbydmEN5OeCVFr4OHOfmw0mK9usqnLMWdOa7dYkzvmy5L3sMElTJZoh_4H8kRaKyfgYG/exec";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -20,7 +20,6 @@ export default async function handler(req, res) {
 
     const text = await response.text();
     
-    // Try to parse as JSON, return raw text if it fails
     try {
       const data = JSON.parse(text);
       return res.status(200).json(data);
