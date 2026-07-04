@@ -51,7 +51,7 @@ const emptyRun = (type) => ({
 });
 
 const STORAGE_KEY = "robbie_training_log";
-const API_URL = "https://script.google.com/macros/s/AKfycbwKTn0YeNFLWEzn-gKkwy4KjowDtAdYoU4syog3CX6Z9qEGM6iAlCB8MwhwTrDXOYQ/exec";
+const API_URL = "/api/sync";
 
 function loadRuns() {
   try {
@@ -88,12 +88,7 @@ async function fetchRunsFromSheet() {
 async function saveRunToSheet(run) {
   try {
     const encoded = encodeURIComponent(JSON.stringify(run));
-    const url = `${API_URL}?action=saveRun&run=${encoded}`;
-    await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = img.onerror = resolve;
-      img.src = url;
-    });
+    await fetch(`${API_URL}?action=saveRun&run=${encoded}`);
   } catch (e) {
     console.error("Failed to save to sheet", e);
   }
@@ -101,12 +96,7 @@ async function saveRunToSheet(run) {
 
 async function deleteRunFromSheet(id) {
   try {
-    const url = `${API_URL}?action=deleteRun&id=${id}`;
-    await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = img.onerror = resolve;
-      img.src = url;
-    });
+    await fetch(`${API_URL}?action=deleteRun&id=${id}`);
   } catch (e) {
     console.error("Failed to delete from sheet", e);
   }
@@ -119,6 +109,16 @@ function daysToRace() {
   today.setHours(0, 0, 0, 0);
   const diff = Math.ceil((RACE_DATE - today) / (1000 * 60 * 60 * 24));
   return diff > 0 ? diff : 0;
+}
+
+function getTrainingWeek() {
+  const PLAN_START = new Date("2026-07-06"); // Week 1 starts July 6
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.floor((today - PLAN_START) / (1000 * 60 * 60 * 24 * 7));
+  if (diff < 0) return null; // Before plan starts
+  if (diff >= 17) return null; // Plan complete
+  return diff + 1;
 }
 
 function shoeKm(runs) {
@@ -241,9 +241,87 @@ function MiniChart({ runs, field, label, unit = "", transform, reverse }) {
   );
 }
 
-function RunCard({ run, onDelete }) {
+function DualChart({ runs }) {
+  const W = 280, H = 90, PAD = 10;
+
+  const data = runs.slice(-10).map((r) => ({
+    date: r.date,
+    hr: parseFloat(r.avgHR),
+    pace: paceToSeconds(r.avgPace),
+  })).filter((d) => !isNaN(d.hr) && d.pace);
+
+  if (data.length < 2) return null;
+
+  const hrMin = Math.min(...data.map((d) => d.hr));
+  const hrMax = Math.max(...data.map((d) => d.hr));
+  const hrRange = hrMax - hrMin || 1;
+
+  const paceMin = Math.min(...data.map((d) => d.pace));
+  const paceMax = Math.max(...data.map((d) => d.pace));
+  const paceRange = paceMax - paceMin || 1;
+
+  const hrPts = data.map((d, i) => {
+    const x = PAD + (i / (data.length - 1)) * (W - PAD * 2);
+    const y = PAD + (1 - (d.hr - hrMin) / hrRange) * (H - PAD * 2);
+    return `${x},${y}`;
+  });
+
+  // Pace is reversed — lower pace (faster) is better so plot high
+  const pacePts = data.map((d, i) => {
+    const x = PAD + (i / (data.length - 1)) * (W - PAD * 2);
+    const y = PAD + ((d.pace - paceMin) / paceRange) * (H - PAD * 2);
+    return `${x},${y}`;
+  });
+
+  const latestHR = data[data.length - 1].hr;
+  const prevHR = data[data.length - 2].hr;
+  const latestPace = data[data.length - 1].pace;
+  const prevPace = data[data.length - 2].pace;
+
+  return (
+    <div style={{ background: "#0f1923", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em" }}>HR vs Pace</span>
+        <div style={{ display: "flex", gap: 12 }}>
+          <span style={{ fontSize: 12, color: "#f97316", fontWeight: 700 }}>
+            {latestHR < prevHR ? "↓" : latestHR > prevHR ? "↑" : "→"} {latestHR.toFixed(0)} bpm
+          </span>
+          <span style={{ fontSize: 12, color: "#3b7dd8", fontWeight: 700 }}>
+            {latestPace < prevPace ? "↑" : latestPace > prevPace ? "↓" : "→"} {secondsToPace(latestPace)}/km
+          </span>
+        </div>
+      </div>
+      <svg width={W} height={H} style={{ overflow: "visible", width: "100%" }}>
+        <polyline points={hrPts.join(" ")} fill="none" stroke="#f97316" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pacePts.join(" ")} fill="none" stroke="#3b7dd8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
+        {data.map((d, i) => {
+          const x = PAD + (i / (data.length - 1)) * (W - PAD * 2);
+          const hrY = PAD + (1 - (d.hr - hrMin) / hrRange) * (H - PAD * 2);
+          const paceY = PAD + ((d.pace - paceMin) / paceRange) * (H - PAD * 2);
+          return (
+            <g key={i}>
+              <circle cx={x} cy={hrY} r={3} fill="#f97316" />
+              <circle cx={x} cy={paceY} r={3} fill="#3b7dd8" />
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ display: "flex", gap: 16, marginTop: 6, justifyContent: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#7a9bb5" }}>
+          <div style={{ width: 16, height: 2, background: "#f97316", borderRadius: 1 }} /> HR
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#7a9bb5" }}>
+          <div style={{ width: 16, height: 2, background: "#3b7dd8", borderRadius: 1, borderTop: "2px dashed #3b7dd8" }} /> Pace
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RunCard({ run, onDelete, onEdit }) {
   const [expanded, setExpanded] = useState(false);
   const hasSplits = run.splits?.some((s) => s);
+  const zone = run.avgHR ? getHRZone(run.avgHR) : null;
   return (
     <div style={{ background: "#111d2b", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #1e3048" }}>
       <div
@@ -266,16 +344,13 @@ function RunCard({ run, onDelete }) {
             <StatBadge label="Cadence" value={run.avgCadence} unit="spm" />
             <StatBadge label="Elevation" value={run.elevationGain} unit="m" />
             {run.rpe && <StatBadge label="RPE" value={`${run.rpe}/10`} />}
-            {run.avgHR && (() => {
-              const z = getHRZone(run.avgHR);
-              return z ? (
-                <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80, border: `1px solid ${z.color}44` }}>
-                  <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Zone</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: z.color }}>{z.zone}</div>
-                  <div style={{ fontSize: 10, color: z.color, opacity: 0.8 }}>{z.label}</div>
-                </div>
-              ) : null;
-            })()}
+            {zone && (
+              <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80, border: `1px solid ${zone.color}44` }}>
+                <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Zone</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: zone.color }}>{zone.zone}</div>
+                <div style={{ fontSize: 10, color: zone.color, opacity: 0.8 }}>{zone.label}</div>
+              </div>
+            )}
           </div>
           {hasSplits && (
             <div style={{ marginTop: 12 }}>
@@ -301,20 +376,28 @@ function RunCard({ run, onDelete }) {
               {run.comments}
             </div>
           )}
-          <button
-            onClick={() => onDelete(run.id)}
-            style={{ marginTop: 12, background: "none", border: "1px solid #3b2030", color: "#f87171", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
-          >
-            Delete run
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              onClick={() => onEdit(run)}
+              style={{ background: "none", border: "1px solid #1e3048", color: "#7a9bb5", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(run.id)}
+              style={{ background: "none", border: "1px solid #3b2030", color: "#f87171", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
+            >
+              Delete run
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function RunForm({ type, onSave, onCancel }) {
-  const [form, setForm] = useState(emptyRun(type));
+function RunForm({ type, onSave, onCancel, initialRun }) {
+  const [form, setForm] = useState(initialRun || emptyRun(type));
 
   const set = (field, val) => setForm((f) => ({ ...f, [field]: val }));
   const setSplit = (i, val) => {
@@ -325,7 +408,7 @@ function RunForm({ type, onSave, onCancel }) {
 
   const handleSave = () => {
     if (!form.date || !form.distance) return alert("Date and distance are required.");
-    const finalForm = { ...form, id: Date.now() };
+    const finalForm = { ...form, id: form.id || Date.now() };
     // If indoor, convert treadmill kph to outdoor-equivalent pace
     if (form.indoor && form.avgKph) {
       finalForm.avgPace = kphToAdjustedPace(form.avgKph);
@@ -349,7 +432,7 @@ function RunForm({ type, onSave, onCancel }) {
   return (
     <div style={{ background: "#111d2b", borderRadius: 12, padding: 18, border: "1px solid #1e3048" }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#3b7dd8", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-        + New {type} Run
+        {initialRun ? `✏️ Edit ${type} Run` : `+ New ${type} Run`}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -386,10 +469,11 @@ function RunForm({ type, onSave, onCancel }) {
         <div style={fieldStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <label style={labelStyle}>Avg HR (bpm)</label>
-            {form.avgHR && (() => {
-              const z = getHRZone(form.avgHR);
-              return z ? <span style={{ fontSize: 11, color: z.color, fontWeight: 700 }}>{z.zone} · {z.label}</span> : null;
-            })()}
+            {form.avgHR && getHRZone(form.avgHR) && (
+              <span style={{ fontSize: 11, color: getHRZone(form.avgHR).color, fontWeight: 700 }}>
+                {getHRZone(form.avgHR).zone} · {getHRZone(form.avgHR).label}
+              </span>
+            )}
           </div>
           <input type="number" style={inputStyle} value={form.avgHR} onChange={(e) => set("avgHR", e.target.value)} placeholder="e.g. 142" />
         </div>
@@ -484,7 +568,7 @@ function RunForm({ type, onSave, onCancel }) {
 
       <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
         <button onClick={handleSave} style={{ flex: 1, background: "#3b7dd8", color: "#fff", border: "none", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em" }}>
-          Save Run
+          {initialRun ? "Update Run" : "Save Run"}
         </button>
         <button onClick={onCancel} style={{ background: "none", border: "1px solid #1e3048", color: "#7a9bb5", borderRadius: 8, padding: "10px 16px", fontSize: 14, cursor: "pointer" }}>
           Cancel
@@ -496,6 +580,7 @@ function RunForm({ type, onSave, onCancel }) {
 
 function RunTypePanel({ type, runs }) {
   const [adding, setAdding] = useState(false);
+  const [editingRun, setEditingRun] = useState(null);
   const [allRuns, setAllRuns] = useState(runs);
 
   useEffect(() => { setAllRuns(runs); }, [runs]);
@@ -510,9 +595,25 @@ function RunTypePanel({ type, runs }) {
     await saveRunToSheet(run);
   };
 
+  const handleEdit = (run) => {
+    setEditingRun(run);
+    setAdding(false);
+  };
+
+  const handleUpdate = async (updatedRun) => {
+    const all = loadRuns().filter((r) => String(r.id) !== String(updatedRun.id));
+    all.push(updatedRun);
+    saveRuns(all);
+    setAllRuns(all.filter((r) => r.type === type));
+    setEditingRun(null);
+    window.dispatchEvent(new Event("runs-updated"));
+    await deleteRunFromSheet(updatedRun.id);
+    await saveRunToSheet(updatedRun);
+  };
+
   const handleDelete = async (id) => {
     if (!confirm("Delete this run?")) return;
-    const all = loadRuns().filter((r) => r.id !== id);
+    const all = loadRuns().filter((r) => String(r.id) !== String(id));
     saveRuns(all);
     setAllRuns(all.filter((r) => r.type === type));
     window.dispatchEvent(new Event("runs-updated"));
@@ -529,6 +630,11 @@ function RunTypePanel({ type, runs }) {
   const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
   const color = typeColors[type];
 
+  const avgPaceDisplay = (() => {
+    const paces = typeRuns.map((r) => paceToSeconds(r.avgPace)).filter((v) => v);
+    return paces.length ? secondsToPace(paces.reduce((a, b) => a + b, 0) / paces.length) : null;
+  })();
+
   return (
     <div>
       {/* Summary bar */}
@@ -539,9 +645,9 @@ function RunTypePanel({ type, runs }) {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <StatBadge label="Avg HR" value={avg("avgHR")} unit="bpm" />
+            <StatBadge label="Avg Pace" value={avgPaceDisplay} unit="/km" />
             <StatBadge label="Cadence" value={avg("avgCadence")} unit="spm" />
             <StatBadge label="Distance" value={avg("distance")} unit="km" />
-            <StatBadge label="Elevation" value={avg("elevationGain")} unit="m" />
           </div>
         </div>
       )}
@@ -550,14 +656,13 @@ function RunTypePanel({ type, runs }) {
       {typeRuns.length >= 2 && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
-          <MiniChart runs={[...typeRuns].reverse()} field="avgHR" label="Avg HR" unit="bpm" />
+          <DualChart runs={[...typeRuns].reverse()} />
           <MiniChart runs={[...typeRuns].reverse()} field="avgCadence" label="Cadence" unit="spm" />
-          <MiniChart runs={[...typeRuns].reverse()} field="avgPace" label="Avg Pace" unit="min/km" transform={paceToSeconds} reverse={true} />
         </div>
       )}
 
       {/* Add button */}
-      {!adding && (
+      {!adding && !editingRun && (
         <button
           onClick={() => setAdding(true)}
           style={{ width: "100%", background: "none", border: `1.5px dashed ${color}`, color: color, borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 16, letterSpacing: "0.05em" }}
@@ -568,13 +673,15 @@ function RunTypePanel({ type, runs }) {
 
       {adding && <div style={{ marginBottom: 16 }}><RunForm type={type} onSave={handleSave} onCancel={() => setAdding(false)} /></div>}
 
+      {editingRun && <div style={{ marginBottom: 16 }}><RunForm type={type} onSave={handleUpdate} onCancel={() => setEditingRun(null)} initialRun={editingRun} /></div>}
+
       {/* Run history */}
-      {typeRuns.length === 0 && !adding && (
+      {typeRuns.length === 0 && !adding && !editingRun && (
         <div style={{ textAlign: "center", color: "#3a5068", padding: "40px 0", fontSize: 14 }}>
           No {type.toLowerCase()} runs logged yet. Add your first one above.
         </div>
       )}
-      {typeRuns.map((r) => <RunCard key={r.id} run={r} onDelete={handleDelete} />)}
+      {typeRuns.map((r) => <RunCard key={r.id} run={r} onDelete={handleDelete} onEdit={handleEdit} />)}
     </div>
   );
 }
@@ -631,8 +738,99 @@ function SummaryPanel({ runs }) {
   const recent4 = weeks.slice(-4).map((w) => w.km);
   const trend = recent4.length >= 2 ? recent4[recent4.length - 1] - recent4[0] : 0;
 
+  // Race prediction calculation - weighted by run type
+  const GOAL_A_SECS = 3 * 3600 + 45 * 60; // 3:45:00
+  const GOAL_B_SECS = 3 * 3600 + 52 * 60; // 3:52:00
+  const GOAL_A_PACE = GOAL_A_SECS / 42.195; // sec/km
+  const GOAL_B_PACE = GOAL_B_SECS / 42.195;
+
+  const TYPE_WEIGHTS = { Long: 0.5, Tempo: 0.35, Easy: 0.15 };
+
+  const recentByType = {};
+  ["Easy", "Tempo", "Long"].forEach((t) => {
+    recentByType[t] = runs
+      .filter((r) => r.type === t && r.avgPace && r.avgHR)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 4);
+  });
+
+  const totalWeightedRuns = Object.entries(recentByType).reduce((a, [t, rs]) => a + rs.length * TYPE_WEIGHTS[t], 0);
+
+  let likelihood = null;
+  let predictionNote = "";
+
+  const allRecentRuns = Object.values(recentByType).flat();
+
+  if (allRecentRuns.length >= 2) {
+    let weightedPace = 0, weightedHR = 0, totalWeight = 0;
+
+    Object.entries(recentByType).forEach(([t, rs]) => {
+      if (!rs.length) return;
+      const w = TYPE_WEIGHTS[t];
+      const avgP = rs.reduce((a, r) => a + paceToSeconds(r.avgPace), 0) / rs.length;
+      const avgH = rs.reduce((a, r) => a + parseFloat(r.avgHR), 0) / rs.length;
+      weightedPace += avgP * w * rs.length;
+      weightedHR += avgH * w * rs.length;
+      totalWeight += w * rs.length;
+    });
+
+    weightedPace /= totalWeight;
+    weightedHR /= totalWeight;
+
+    const hrScore = weightedHR < 148 ? 1 : weightedHR < 158 ? 0.75 : weightedHR < 165 ? 0.5 : 0.25;
+    const paceRatio = GOAL_A_PACE / weightedPace;
+    const paceScore = paceRatio >= 1 ? 1 : paceRatio >= 0.9 ? 0.7 : paceRatio >= 0.8 ? 0.4 : 0.2;
+
+    // Trend bonus from long runs specifically
+    const longRuns = recentByType["Long"];
+    let trendBonus = 0;
+    if (longRuns.length >= 2) {
+      const older = longRuns.slice(Math.floor(longRuns.length / 2));
+      const newer = longRuns.slice(0, Math.floor(longRuns.length / 2));
+      const hrTrend = older.reduce((a, r) => a + parseFloat(r.avgHR), 0) / older.length -
+                      newer.reduce((a, r) => a + parseFloat(r.avgHR), 0) / newer.length;
+      trendBonus = hrTrend > 2 ? 0.1 : hrTrend < -2 ? -0.1 : 0;
+    }
+
+    likelihood = Math.min(Math.max(Math.round((hrScore * 0.5 + paceScore * 0.5 + trendBonus) * 100), 5), 95);
+
+    const typesUsed = Object.entries(recentByType).filter(([, rs]) => rs.length).map(([t]) => t).join(", ");
+    predictionNote = `Weighted avg pace ${secondsToPace(weightedPace)}/km · Avg HR ${weightedHR.toFixed(0)} bpm · Based on: ${typesUsed}`;
+  }
+
+  const likelihoodColor = likelihood >= 70 ? "#4ade80" : likelihood >= 45 ? "#f59e0b" : "#f87171";
+
   return (
     <div>
+      {/* Race prediction */}
+      <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20, border: "1px solid #1e3048" }}>
+        <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Race Prediction · Oct 25</div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid #22c55e33" }}>
+            <div style={{ fontSize: 10, color: "#22c55e", marginBottom: 4 }}>A GOAL</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>3:45:00</div>
+            <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 2 }}>{secondsToPace(GOAL_A_PACE)}/km</div>
+          </div>
+          <div style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid #f59e0b33" }}>
+            <div style={{ fontSize: 10, color: "#f59e0b", marginBottom: 4 }}>B GOAL</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>3:52:00</div>
+            <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 2 }}>{secondsToPace(GOAL_B_PACE)}/km</div>
+          </div>
+          {likelihood !== null && (
+            <div style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px", textAlign: "center", border: `1px solid ${likelihoodColor}33` }}>
+              <div style={{ fontSize: 10, color: likelihoodColor, marginBottom: 4 }}>A GOAL ODDS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: likelihoodColor, fontFamily: "monospace" }}>{likelihood}%</div>
+            </div>
+          )}
+        </div>
+        {likelihood !== null && (
+          <div style={{ fontSize: 11, color: "#5a7a94", lineHeight: 1.5 }}>{predictionNote}</div>
+        )}
+        {likelihood === null && (
+          <div style={{ fontSize: 12, color: "#3a5068" }}>Log at least 2 runs with pace and HR to see your prediction.</div>
+        )}
+      </div>
+
       {/* Top stats */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         <StatBadge label="Total Runs" value={totalRuns} />
@@ -726,9 +924,20 @@ function App() {
   const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
   const totalKm = runs.reduce((a, r) => a + (parseFloat(r.distance) || 0), 0);
   const days = daysToRace();
+  const trainingWeek = getTrainingWeek();
   const shoeKms = shoeKm(runs);
   const SHOE_LIMIT = 700;
   const weeklyKms = getWeeklyKm(runs);
+  const CADENCE_TARGET = 166;
+
+  // Recent avg cadence across all runs
+  const recentCadenceRuns = runs
+    .filter((r) => r.avgCadence)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+  const recentAvgCadence = recentCadenceRuns.length
+    ? Math.round(recentCadenceRuns.reduce((a, r) => a + parseFloat(r.avgCadence), 0) / recentCadenceRuns.length)
+    : null;
 
   // Current week key (Monday)
   const todayD = new Date();
@@ -751,6 +960,11 @@ function App() {
                 Niagara Falls Marathon · Oct 25, 2026
                 {loading && <span style={{ marginLeft: 8, color: "#3b7dd8" }}>⟳ syncing...</span>}
               </div>
+              {trainingWeek && (
+                <div style={{ marginTop: 4, fontSize: 11, color: "#3b7dd8", fontWeight: 700, letterSpacing: "0.05em" }}>
+                  WEEK {trainingWeek} OF 17
+                </div>
+              )}
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: days < 30 ? "#f87171" : days < 60 ? "#f59e0b" : "#3b7dd8", fontFamily: "monospace" }}>{days}</div>
@@ -764,6 +978,20 @@ function App() {
             <div style={{ color: "#2a3f54" }}>|</div>
             <div style={{ color: "#7a9bb5" }}>Total: <span style={{ color: "#e8f4ff", fontWeight: 600 }}>{totalKm.toFixed(1)} km</span></div>
             <div style={{ color: "#2a3f54" }}>|</div>
+            {recentAvgCadence && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ color: recentAvgCadence >= CADENCE_TARGET ? "#4ade80" : "#f59e0b" }}>
+                    👟 {recentAvgCadence} spm
+                  </span>
+                  <div style={{ width: 36, height: 4, background: "#1e3048", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(recentAvgCadence / CADENCE_TARGET, 1) * 100}%`, height: "100%", background: recentAvgCadence >= CADENCE_TARGET ? "#4ade80" : "#f59e0b", borderRadius: 2 }} />
+                  </div>
+                  <span style={{ color: "#5a7a94", fontSize: 10 }}>{CADENCE_TARGET}</span>
+                </div>
+                <div style={{ color: "#2a3f54" }}>|</div>
+              </>
+            )}
             {SHOES.filter(s => s !== "Other").map((shoe) => {
               const km = shoeKms[shoe] || 0;
               const pct = Math.min(km / SHOE_LIMIT, 1);
