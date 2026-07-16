@@ -909,7 +909,7 @@ function SummaryPanel({ runs }) {
   return (
     <div>
       {/* Overall efficiency rating */}
-      {overallEff && overallEffRating && (
+      {overallEff !== null && overallEffRating && (
         <div style={{ background: "#0f1923", borderRadius: 10, padding: "16px", marginBottom: 20, border: `1px solid ${overallEffRating.color}44`, textAlign: "center" }}>
           <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Overall Training Efficiency</div>
           <div style={{ fontSize: 52, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
