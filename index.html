@@ -881,10 +881,42 @@ function SummaryPanel({ runs }) {
     predictionNote = `Weighted avg pace ${secondsToPace(weightedPace)}/km · Avg HR ${weightedHR.toFixed(0)} bpm · Based on: ${typesUsed}`;
   }
 
+  // Overall weighted efficiency rating
+  const TYPE_EFF_WEIGHTS = { Long: 0.5, Tempo: 0.35, Easy: 0.15 };
+  let overallEff = null;
+  let totalEffWeight = 0;
+  let weightedEffSum = 0;
+
+  ["Easy", "Tempo", "Long"].forEach((t) => {
+    const typeRuns = runs.filter((r) => r.type === t);
+    const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
+    if (scores.length) {
+      const bestScore = Math.min(...scores);
+      const pct = getEfficiencyPct(bestScore);
+      weightedEffSum += pct * TYPE_EFF_WEIGHTS[t];
+      totalEffWeight += TYPE_EFF_WEIGHTS[t];
+    }
+  });
+
+  if (totalEffWeight > 0) {
+    overallEff = Math.round(weightedEffSum / totalEffWeight);
+  }
+
+  const overallEffRating = overallEff ? getEfficiencyRating(overallEff) : null;
+
   const likelihoodColor = likelihood >= 70 ? "#4ade80" : likelihood >= 45 ? "#f59e0b" : "#f87171";
 
   return (
     <div>
+      {/* Overall efficiency rating */}
+      {overallEff && overallEffRating && (
+        <div style={{ background: "#0f1923", borderRadius: 10, padding: "16px", marginBottom: 20, border: `1px solid ${overallEffRating.color}44`, textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Overall Training Efficiency</div>
+          <div style={{ fontSize: 52, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
+          <div style={{ fontSize: 13, color: overallEffRating.color, marginTop: 6, fontWeight: 600 }}>{overallEffRating.label}</div>
+          <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 6 }}>95% = on track for 3:45 · Weighted: Long 50% · Tempo 35% · Easy 15%</div>
+        </div>
+      )}
       {/* Race prediction */}
       <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20, border: "1px solid #1e3048" }}>
         <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Race Prediction · Oct 25</div>
