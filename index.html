@@ -146,16 +146,47 @@ function getWeeklyKm(runs) {
   return weeks;
 }
 
-// Target efficiency based on 3:45 marathon goal
-// Marathon pace 5:20/km = 320 sec/km, target HR 155 bpm
-// Target efficiency score = 320 / 155 = 2.065
-// This target = 95% on our scale
-const TARGET_EFFICIENCY = 2.065;
+
+// Race time predictions using Riegel formula: T2 = T1 * (D2/D1)^1.06
+// Based on half marathon PB: 1:50:05 = 6605 seconds
+const HALF_TIME_SECS = 6605;
+const HALF_DIST = 21.0975;
+
+function predictRaceTime(distKm) {
+  return HALF_TIME_SECS * Math.pow(distKm / HALF_DIST, 1.06);
+}
+
+// A GOAL: 3:45:00 marathon = 13500 seconds
+// All targets set at 95% = achieving A goal fitness
+const GOAL_MARATHON_SECS = 3 * 3600 + 45 * 60;
+const GOAL_MARATHON_PACE = GOAL_MARATHON_SECS / 42.195; // 5:20/km = 320 sec/km
+
+// 10km equivalent of 3:45 marathon via Riegel
+const GOAL_10K_SECS = GOAL_MARATHON_SECS * Math.pow(10 / 42.195, 1.06);
+const GOAL_10K_PACE = GOAL_10K_SECS / 10; // ~4:53/km = 293 sec/km
+
+// Target HR for tempo and long runs
+const TARGET_HR = 155;
+
+// Efficiency targets at 95%:
+// Easy: Z2 midpoint 119 bpm at 6:20/km (380 sec) — higher score = better
+const EASY_TARGET = 380 / 119; // 3.193
+
+// Tempo: A goal 10km pace at 155 bpm, reference distance 10km
+const TEMPO_TARGET = GOAL_10K_PACE / (TARGET_HR * 1.0); // ~1.890
+
+// Long: A goal marathon pace at 155 bpm, reference 42.2km
+const LONG_TARGET = GOAL_MARATHON_PACE / (TARGET_HR * 1.0); // ~2.065
+
 const TARGET_PCT = 95;
+
+// Cadence targets by run type
+const CADENCE_TARGETS = { Easy: 166, Long: 168, Tempo: 170 };
 
 function calcEfficiency(run) {
   const pace = paceToSeconds(run.avgPace);
   const hr = parseFloat(run.avgHR);
+  const dist = parseFloat(run.distance) || 1;
   if (!pace || !hr) return null;
 
   // Heat adjustment — reduce effective HR by 1 bpm per degree above 15°C
@@ -163,7 +194,6 @@ function calcEfficiency(run) {
   const heatAdj = Math.max(0, temp - 15) * 1.0;
 
   // Elevation adjustment — add 1 bpm per 10m gain per km
-  const dist = parseFloat(run.distance) || 1;
   const gain = parseFloat(run.elevationGain) || 0;
   const gainPerKm = gain / dist;
   const elevAdj = gainPerKm / 10;
@@ -174,16 +204,47 @@ function calcEfficiency(run) {
   const adjustedHR = hr - heatAdj - elevAdj + indoorAdj;
   if (adjustedHR <= 0) return null;
 
-  return parseFloat((pace / adjustedHR).toFixed(3));
+  if (run.type === "Easy") {
+    // Easy runs — judged on Z2 HR performance + cadence factor
+    // Higher score = better (faster pace at lower HR with good cadence)
+    const baseScore = pace / adjustedHR;
+
+    // Cadence factor — penalise below 166 spm
+    const cadence = parseFloat(run.avgCadence) || 0;
+    let cadenceFactor = 1.0;
+    if (cadence > 0) {
+      if (cadence >= 166) cadenceFactor = 1.0;
+      else if (cadence >= 163) cadenceFactor = 0.97;
+      else if (cadence >= 160) cadenceFactor = 0.94;
+      else cadenceFactor = 0.90;
+    }
+
+    return parseFloat((baseScore * cadenceFactor).toFixed(3));
+  } else if (run.type === "Tempo") {
+    // Tempo — reference distance is 10km, lower score = better
+    const distanceFactor = Math.min(dist / 10, 1.0);
+    if (distanceFactor <= 0) return null;
+    return parseFloat((pace / (adjustedHR * distanceFactor)).toFixed(3));
+  } else {
+    // Long — reference distance is 42.2km, lower score = better
+    const distanceFactor = Math.min(dist / 42.2, 1.0);
+    if (distanceFactor <= 0) return null;
+    return parseFloat((pace / (adjustedHR * distanceFactor)).toFixed(3));
+  }
 }
 
-function getEfficiencyPct(score) {
+function getEfficiencyPct(score, type) {
   if (!score) return null;
-  // Lower score = better efficiency
-  // TARGET_EFFICIENCY = 95%
-  // Scale: pct = (TARGET_EFFICIENCY / score) * TARGET_PCT
-  const pct = Math.round((TARGET_EFFICIENCY / score) * TARGET_PCT);
-  return pct;
+  if (type === "Easy") {
+    // Higher score = better, EASY_TARGET = 95%
+    return Math.round((score / EASY_TARGET) * TARGET_PCT);
+  } else if (type === "Tempo") {
+    // Lower score = better, TEMPO_TARGET = 95%
+    return Math.round((TEMPO_TARGET / score) * TARGET_PCT);
+  } else {
+    // Lower score = better, LONG_TARGET = 95%
+    return Math.round((LONG_TARGET / score) * TARGET_PCT);
+  }
 }
 
 function getEfficiencyRating(pct) {
@@ -374,7 +435,7 @@ function RunCard({ run, onDelete, onEdit }) {
   const hasSplits = run.splits?.some((s) => s);
   const zone = run.avgHR ? getHRZone(run.avgHR) : null;
   const efficiency = calcEfficiency(run);
-  const effPct = efficiency ? getEfficiencyPct(efficiency) : null;
+  const effPct = efficiency ? getEfficiencyPct(efficiency, run.type) : null;
   const effRating = effPct ? getEfficiencyRating(effPct) : null;
   return (
     <div style={{ background: "#111d2b", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #1e3048" }}>
@@ -734,7 +795,7 @@ function RunTypePanel({ type, runs }) {
           <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
           {typeRuns.some(r => calcEfficiency(r)) && (
             <MiniChart
-              runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r)) }))}
+              runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r), r.type) }))}
               field="effPct"
               label="Efficiency % (95% = 3:45 target)"
               unit="%"
@@ -881,22 +942,33 @@ function SummaryPanel({ runs }) {
     predictionNote = `Weighted avg pace ${secondsToPace(weightedPace)}/km · Avg HR ${weightedHR.toFixed(0)} bpm · Based on: ${typesUsed}`;
   }
 
-  // Overall weighted efficiency rating
-  const TYPE_EFF_WEIGHTS = { Long: 0.5, Tempo: 0.35, Easy: 0.15 };
+  // Overall weighted efficiency — Tempo + Long only for race efficiency
+  const TYPE_EFF_WEIGHTS = { Tempo: 0.35, Long: 0.65 };
   let overallEff = null;
   let totalEffWeight = 0;
   let weightedEffSum = 0;
 
-  ["Easy", "Tempo", "Long"].forEach((t) => {
+  ["Tempo", "Long"].forEach((t) => {
     const typeRuns = runs.filter((r) => r.type === t);
     const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
     if (scores.length) {
       const bestScore = Math.min(...scores);
-      const pct = getEfficiencyPct(bestScore);
+      const pct = getEfficiencyPct(bestScore, t);
       weightedEffSum += pct * TYPE_EFF_WEIGHTS[t];
       totalEffWeight += TYPE_EFF_WEIGHTS[t];
     }
   });
+
+  if (totalEffWeight > 0) {
+    overallEff = Math.round(weightedEffSum / totalEffWeight);
+  }
+
+  // Easy efficiency separately
+  const easyRuns = runs.filter((r) => r.type === "Easy");
+  const easyScores = easyRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
+  const bestEasyScore = easyScores.length ? Math.max(...easyScores) : null;
+  const easyEff = bestEasyScore ? getEfficiencyPct(bestEasyScore, "Easy") : null;
+  const easyEffRating = easyEff ? getEfficiencyRating(easyEff) : null;
 
   if (totalEffWeight > 0) {
     overallEff = Math.round(weightedEffSum / totalEffWeight);
@@ -908,15 +980,30 @@ function SummaryPanel({ runs }) {
 
   return (
     <div>
-      {/* Overall efficiency rating */}
-      {overallEff !== null && overallEffRating && (
-        <div style={{ background: "#0f1923", borderRadius: 10, padding: "16px", marginBottom: 20, border: `1px solid ${overallEffRating.color}44`, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Overall Training Efficiency</div>
-          <div style={{ fontSize: 52, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
-          <div style={{ fontSize: 13, color: overallEffRating.color, marginTop: 6, fontWeight: 600 }}>{overallEffRating.label}</div>
-          <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 6 }}>95% = on track for 3:45 · Weighted: Long 50% · Tempo 35% · Easy 15%</div>
-        </div>
-      )}
+      {/* Efficiency ratings */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        {easyEff && easyEffRating && (
+          <div style={{ flex: 1, background: "#0f1923", borderRadius: 10, padding: "14px", border: `1px solid ${easyEffRating.color}44`, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Easy Efficiency</div>
+            <div style={{ fontSize: 40, fontWeight: 800, color: easyEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{easyEff}%</div>
+            <div style={{ fontSize: 12, color: easyEffRating.color, marginTop: 4 }}>{easyEffRating.label}</div>
+            <div style={{ fontSize: 9, color: "#3a5068", marginTop: 4 }}>95% = 6:20 @ Z2 + cadence</div>
+          </div>
+        )}
+        {overallEff !== null && overallEffRating && (
+          <div style={{ flex: 1, background: "#0f1923", borderRadius: 10, padding: "14px", border: `1px solid ${overallEffRating.color}44`, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Race Efficiency</div>
+            <div style={{ fontSize: 40, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
+            <div style={{ fontSize: 12, color: overallEffRating.color, marginTop: 4 }}>{overallEffRating.label}</div>
+            <div style={{ fontSize: 9, color: "#3a5068", marginTop: 4 }}>95% = on track for 3:45</div>
+          </div>
+        )}
+        {!easyEff && !overallEff && (
+          <div style={{ flex: 1, background: "#0f1923", borderRadius: 10, padding: "20px", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#3a5068" }}>Log runs with pace + HR to see efficiency</div>
+          </div>
+        )}
+      </div>
       {/* Race prediction */}
       <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20, border: "1px solid #1e3048" }}>
         <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Race Prediction · Oct 25</div>
@@ -992,13 +1079,13 @@ function SummaryPanel({ runs }) {
       {/* Efficiency personal bests */}
       {runs.length >= 2 && (
         <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Efficiency vs 3:45 Target</div>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Efficiency vs Target</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["Easy", "Tempo", "Long"].map((t) => {
               const typeRuns = runs.filter((r) => r.type === t);
               const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
-              const best = scores.length ? Math.min(...scores) : null;
-              const bestPct = best ? getEfficiencyPct(best) : null;
+              const best = scores.length ? (t === "Easy" ? Math.max(...scores) : Math.min(...scores)) : null;
+              const bestPct = best ? getEfficiencyPct(best, t) : null;
               const bestRun = best ? typeRuns.find((r) => calcEfficiency(r) === best) : null;
               const rating = bestPct ? getEfficiencyRating(bestPct) : null;
               const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
@@ -1012,7 +1099,7 @@ function SummaryPanel({ runs }) {
               );
             })}
           </div>
-          <div style={{ fontSize: 10, color: "#3a5068", marginTop: 10 }}>95% = on track for 3:45 · 100%+ = ahead of target</div>
+          <div style={{ fontSize: 10, color: "#3a5068", marginTop: 10 }}>Easy: 95% = 6:20/km at Z2 · Tempo: 95% = predicted 10km pace · Long: 95% = predicted marathon pace</div>
         </div>
       )}
 
@@ -1100,16 +1187,15 @@ function App() {
   const shoeKms = shoeKm(runs);
   const SHOE_LIMIT = 700;
   const weeklyKms = getWeeklyKm(runs);
-  const CADENCE_TARGET = 166;
-
-  // Recent avg cadence across all runs
-  const recentCadenceRuns = runs
-    .filter((r) => r.avgCadence)
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
-  const recentAvgCadence = recentCadenceRuns.length
-    ? Math.round(recentCadenceRuns.reduce((a, r) => a + parseFloat(r.avgCadence), 0) / recentCadenceRuns.length)
-    : null;
+  // Recent avg cadence by run type
+  const recentCadenceByType = {};
+  ["Easy", "Tempo", "Long"].forEach((t) => {
+    const recent = runs.filter((r) => r.type === t && r.avgCadence)
+      .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+    recentCadenceByType[t] = recent.length
+      ? Math.round(recent.reduce((a, r) => a + parseFloat(r.avgCadence), 0) / recent.length)
+      : null;
+  });
 
   // Current week key (Monday)
   const todayD = new Date();
@@ -1150,17 +1236,25 @@ function App() {
             <div style={{ color: "#2a3f54" }}>|</div>
             <div style={{ color: "#7a9bb5" }}>Total: <span style={{ color: "#e8f4ff", fontWeight: 600 }}>{totalKm.toFixed(1)} km</span></div>
             <div style={{ color: "#2a3f54" }}>|</div>
-            {recentAvgCadence && (
+            {Object.entries(recentCadenceByType).some(([, v]) => v) && (
               <>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ color: recentAvgCadence >= CADENCE_TARGET ? "#4ade80" : "#f59e0b" }}>
-                    👟 {recentAvgCadence} spm
-                  </span>
-                  <div style={{ width: 36, height: 4, background: "#1e3048", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ width: `${Math.min(recentAvgCadence / CADENCE_TARGET, 1) * 100}%`, height: "100%", background: recentAvgCadence >= CADENCE_TARGET ? "#4ade80" : "#f59e0b", borderRadius: 2 }} />
-                  </div>
-                  <span style={{ color: "#5a7a94", fontSize: 10 }}>{CADENCE_TARGET}</span>
-                </div>
+                {["Easy", "Tempo", "Long"].map((t) => {
+                  const cadence = recentCadenceByType[t];
+                  const target = CADENCE_TARGETS[t];
+                  if (!cadence) return null;
+                  const onTarget = cadence >= target;
+                  const shortLabel = t === "Easy" ? "E" : t === "Tempo" ? "T" : "L";
+                  return (
+                    <div key={t} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 10, color: onTarget ? "#4ade80" : "#f59e0b" }}>
+                        {shortLabel}:{cadence}
+                      </span>
+                      <div style={{ width: 24, height: 3, background: "#1e3048", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ width: `${Math.min(cadence / target, 1) * 100}%`, height: "100%", background: onTarget ? "#4ade80" : "#f59e0b", borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  );
+                })}
                 <div style={{ color: "#2a3f54" }}>|</div>
               </>
             )}
