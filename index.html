@@ -146,6 +146,13 @@ function getWeeklyKm(runs) {
   return weeks;
 }
 
+// Target efficiency based on 3:45 marathon goal
+// Marathon pace 5:20/km = 320 sec/km, target HR 155 bpm
+// Target efficiency score = 320 / 155 = 2.065
+// This target = 95% on our scale
+const TARGET_EFFICIENCY = 2.065;
+const TARGET_PCT = 95;
+
 function calcEfficiency(run) {
   const pace = paceToSeconds(run.avgPace);
   const hr = parseFloat(run.avgHR);
@@ -170,18 +177,22 @@ function calcEfficiency(run) {
   return parseFloat((pace / adjustedHR).toFixed(3));
 }
 
-function getEfficiencyPct(score, bestScore) {
-  if (!score || !bestScore) return null;
-  // Lower score = better, so invert the ratio
-  const pct = Math.round((bestScore / score) * 100);
-  return Math.min(pct, 100);
+function getEfficiencyPct(score) {
+  if (!score) return null;
+  // Lower score = better efficiency
+  // TARGET_EFFICIENCY = 95%
+  // Scale: pct = (TARGET_EFFICIENCY / score) * TARGET_PCT
+  const pct = Math.round((TARGET_EFFICIENCY / score) * TARGET_PCT);
+  return pct;
 }
 
 function getEfficiencyRating(pct) {
   if (!pct) return null;
-  if (pct >= 90) return { label: "Excellent", color: "#4ade80" };
-  if (pct >= 75) return { label: "Good", color: "#facc15" };
-  return { label: "Below par", color: "#f87171" };
+  if (pct >= 100) return { label: "Beyond target", color: "#a78bfa" };
+  if (pct >= 95) return { label: "On target", color: "#4ade80" };
+  if (pct >= 80) return { label: "Good progress", color: "#facc15" };
+  if (pct >= 65) return { label: "Building", color: "#f97316" };
+  return { label: "Early days", color: "#f87171" };
 }
 
 
@@ -358,12 +369,12 @@ function DualChart({ runs }) {
   );
 }
 
-function RunCard({ run, onDelete, onEdit, bestEfficiency }) {
+function RunCard({ run, onDelete, onEdit }) {
   const [expanded, setExpanded] = useState(false);
   const hasSplits = run.splits?.some((s) => s);
   const zone = run.avgHR ? getHRZone(run.avgHR) : null;
   const efficiency = calcEfficiency(run);
-  const effPct = efficiency && bestEfficiency ? getEfficiencyPct(efficiency, bestEfficiency) : null;
+  const effPct = efficiency ? getEfficiencyPct(efficiency) : null;
   const effRating = effPct ? getEfficiencyRating(effPct) : null;
   return (
     <div style={{ background: "#111d2b", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #1e3048" }}>
@@ -687,10 +698,6 @@ function RunTypePanel({ type, runs }) {
 
   const typeRuns = allRuns.filter((r) => r.type === type).sort((a, b) => b.date.localeCompare(a.date));
 
-  // Best efficiency = lowest score for this run type
-  const efficiencyScores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
-  const bestEfficiency = efficiencyScores.length ? Math.min(...efficiencyScores) : null;
-
   const avg = (field) => {
     const vals = typeRuns.map((r) => parseFloat(r[field])).filter((v) => !isNaN(v));
     return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
@@ -725,11 +732,11 @@ function RunTypePanel({ type, runs }) {
       {typeRuns.length >= 2 && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
-          {bestEfficiency && (
+          {typeRuns.some(r => calcEfficiency(r)) && (
             <MiniChart
-              runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r), bestEfficiency) }))}
+              runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r)) }))}
               field="effPct"
-              label="Efficiency %"
+              label="Efficiency % (95% = 3:45 target)"
               unit="%"
             />
           )}
@@ -757,7 +764,7 @@ function RunTypePanel({ type, runs }) {
           No {type.toLowerCase()} runs logged yet. Add your first one above.
         </div>
       )}
-      {typeRuns.map((r) => <RunCard key={r.id} run={r} onDelete={handleDelete} onEdit={handleEdit} bestEfficiency={bestEfficiency} />)}
+      {typeRuns.map((r) => <RunCard key={r.id} run={r} onDelete={handleDelete} onEdit={handleEdit} />)}
     </div>
   );
 }
@@ -953,24 +960,27 @@ function SummaryPanel({ runs }) {
       {/* Efficiency personal bests */}
       {runs.length >= 2 && (
         <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Efficiency Personal Bests</div>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Efficiency vs 3:45 Target</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["Easy", "Tempo", "Long"].map((t) => {
               const typeRuns = runs.filter((r) => r.type === t);
               const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
               const best = scores.length ? Math.min(...scores) : null;
+              const bestPct = best ? getEfficiencyPct(best) : null;
               const bestRun = best ? typeRuns.find((r) => calcEfficiency(r) === best) : null;
+              const rating = bestPct ? getEfficiencyRating(bestPct) : null;
               const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
               return (
                 <div key={t} style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px 8px", textAlign: "center", border: `1px solid ${typeColors[t]}33` }}>
                   <div style={{ fontSize: 11, color: typeColors[t], marginBottom: 4 }}>{t}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>{best ? "100%" : "--"}</div>
-                  {bestRun && <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 2 }}>{bestRun.date}</div>}
+                  <div style={{ fontSize: 22, fontWeight: 700, color: rating ? rating.color : "#3a5068", fontFamily: "monospace" }}>{bestPct ? `${bestPct}%` : "--"}</div>
+                  {rating && <div style={{ fontSize: 10, color: rating.color, marginTop: 2 }}>{rating.label}</div>}
+                  {bestRun && <div style={{ fontSize: 9, color: "#5a7a94", marginTop: 2 }}>{bestRun.date}</div>}
                 </div>
               );
             })}
           </div>
-          <div style={{ fontSize: 10, color: "#3a5068", marginTop: 10 }}>100% = your best ever · Adjusted for heat, elevation & treadmill</div>
+          <div style={{ fontSize: 10, color: "#3a5068", marginTop: 10 }}>95% = on track for 3:45 · 100%+ = ahead of target</div>
         </div>
       )}
 
