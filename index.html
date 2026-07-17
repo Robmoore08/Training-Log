@@ -222,9 +222,12 @@ function calcEfficiency(run) {
     return parseFloat((baseScore * cadenceFactor).toFixed(3));
   } else if (run.type === "Tempo") {
     // Tempo — reference distance is 10km, lower score = better
+    // Penalised for shorter distance, rewarded for faster pace
     const distanceFactor = Math.min(dist / 10, 1.0);
     if (distanceFactor <= 0) return null;
-    return parseFloat((pace / (adjustedHR * distanceFactor)).toFixed(3));
+    // Pace factor — if faster than target pace, reward it
+    const paceFactor = GOAL_10K_PACE / pace; // >1 if faster than target, <1 if slower
+    return parseFloat((pace / (adjustedHR * distanceFactor * paceFactor)).toFixed(3));
   } else {
     // Long — reference distance is 42.2km, lower score = better
     const distanceFactor = Math.min(dist / 42.2, 1.0);
