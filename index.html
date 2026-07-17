@@ -170,7 +170,8 @@ const TARGET_HR = 155;
 
 // Efficiency targets at 95%:
 // Easy: Z2 midpoint 119 bpm at 6:20/km (380 sec) — higher score = better
-const EASY_TARGET = 380 / 119; // 3.193
+const EASY_TARGET_PACE = 380; // sec/km
+const EASY_TARGET_HR = 119; // bpm
 
 // Tempo: A goal 10km pace at 155 bpm, reference distance 10km
 const TEMPO_TARGET = GOAL_10K_PACE / (TARGET_HR * 1.0); // ~1.890
@@ -205,8 +206,9 @@ function calcEfficiency(run) {
   if (adjustedHR <= 0) return null;
 
   if (run.type === "Easy") {
-    // Easy runs — pace/HR with cadence factor, higher = better
-    const baseScore = pace / adjustedHR;
+    // Easy runs — reward pace faster than target AND HR lower than target, with cadence factor
+    const paceRatio = EASY_TARGET_PACE / pace; // >1 if faster than target pace
+    const hrRatio = EASY_TARGET_HR / adjustedHR; // >1 if HR lower than target
     const cadence = parseFloat(run.avgCadence) || 0;
     let cadenceFactor = 1.0;
     if (cadence > 0) {
@@ -215,38 +217,35 @@ function calcEfficiency(run) {
       else if (cadence >= 160) cadenceFactor = 0.94;
       else cadenceFactor = 0.90;
     }
-    return parseFloat((baseScore * cadenceFactor).toFixed(3));
+    return parseFloat((paceRatio * hrRatio * cadenceFactor).toFixed(3));
 
   } else if (run.type === "Tempo") {
-    // Tempo — distance factor (ref 10km), HR ratio, pace factor
+    // Tempo — reward pace faster than goal AND HR lower than target, scaled by distance (ref 10km)
     const distFactor = Math.pow(Math.min(dist, 10) / 10, 0.3);
-    const hrRatio = adjustedHR / TARGET_HR;
-    const paceFactor = GOAL_10K_PACE / pace; // rewards faster than target
-    return parseFloat(((pace / adjustedHR) * distFactor * hrRatio * paceFactor).toFixed(3));
+    const paceRatio = GOAL_10K_PACE / pace; // >1 if faster than goal pace
+    const hrRatio = TARGET_HR / adjustedHR; // >1 if HR lower than target
+    return parseFloat((paceRatio * hrRatio * distFactor).toFixed(3));
 
   } else {
-    // Long — distance factor (ref 42.2km), HR ratio
+    // Long — reward pace faster than goal AND HR lower than target, scaled by distance (ref 42.2km)
     const distFactor = Math.pow(Math.min(dist, 42.2) / 42.2, 0.3);
-    const hrRatio = adjustedHR / TARGET_HR;
-    return parseFloat(((pace / adjustedHR) * distFactor * hrRatio).toFixed(3));
+    const paceRatio = GOAL_MARATHON_PACE / pace; // >1 if faster than goal pace
+    const hrRatio = TARGET_HR / adjustedHR; // >1 if HR lower than target
+    return parseFloat((paceRatio * hrRatio * distFactor).toFixed(3));
   }
 }
 
 function getEfficiencyPct(score, type) {
   if (!score) return null;
   if (type === "Easy") {
-    // Higher = better, 95% target = EASY_TARGET
-    return Math.round((score / EASY_TARGET) * TARGET_PCT);
+    // Score is self-normalized: 1.0 = exactly target pace at target HR
+    return Math.round(score * TARGET_PCT);
   } else if (type === "Tempo") {
-    // Target at 95%: 10km at 4:53/km HR155
-    // score = (293/155) * 1.0 * 1.0 * 1.0 = 1.890
-    const target = (GOAL_10K_PACE / TARGET_HR) * 1.0 * 1.0 * 1.0;
-    return Math.round((score / target) * TARGET_PCT);
+    // Score is self-normalized: 1.0 = exactly goal pace at goal HR over 10km
+    return Math.round(score * TARGET_PCT);
   } else {
-    // Target at 95%: 42.2km at 5:20/km HR155
-    // score = (320/155) * 1.0 * 1.0 = 2.065
-    const target = (GOAL_MARATHON_PACE / TARGET_HR) * 1.0 * 1.0;
-    return Math.round((score / target) * TARGET_PCT);
+    // Score is self-normalized: 1.0 = exactly goal pace at goal HR over 42.2km
+    return Math.round(score * TARGET_PCT);
   }
 }
 
