@@ -205,11 +205,8 @@ function calcEfficiency(run) {
   if (adjustedHR <= 0) return null;
 
   if (run.type === "Easy") {
-    // Easy runs — judged on Z2 HR performance + cadence factor
-    // Higher score = better (faster pace at lower HR with good cadence)
+    // Easy runs — pace/HR with cadence factor, higher = better
     const baseScore = pace / adjustedHR;
-
-    // Cadence factor — penalise below 166 spm
     const cadence = parseFloat(run.avgCadence) || 0;
     let cadenceFactor = 1.0;
     if (cadence > 0) {
@@ -218,35 +215,38 @@ function calcEfficiency(run) {
       else if (cadence >= 160) cadenceFactor = 0.94;
       else cadenceFactor = 0.90;
     }
-
     return parseFloat((baseScore * cadenceFactor).toFixed(3));
+
   } else if (run.type === "Tempo") {
-    // Tempo — reference distance is 10km, lower score = better
-    // Penalised for shorter distance, rewarded for faster pace
-    const distanceFactor = Math.min(dist / 10, 1.0);
-    if (distanceFactor <= 0) return null;
-    // Pace factor — if faster than target pace, reward it
-    const paceFactor = GOAL_10K_PACE / pace; // >1 if faster than target, <1 if slower
-    return parseFloat((pace / (adjustedHR * distanceFactor * paceFactor)).toFixed(3));
+    // Tempo — distance factor (ref 10km), HR ratio, pace factor
+    const distFactor = Math.pow(Math.min(dist, 10) / 10, 0.3);
+    const hrRatio = adjustedHR / TARGET_HR;
+    const paceFactor = GOAL_10K_PACE / pace; // rewards faster than target
+    return parseFloat(((pace / adjustedHR) * distFactor * hrRatio * paceFactor).toFixed(3));
+
   } else {
-    // Long — reference distance is 42.2km, lower score = better
-    const distanceFactor = Math.min(dist / 42.2, 1.0);
-    if (distanceFactor <= 0) return null;
-    return parseFloat((pace / (adjustedHR * distanceFactor)).toFixed(3));
+    // Long — distance factor (ref 42.2km), HR ratio
+    const distFactor = Math.pow(Math.min(dist, 42.2) / 42.2, 0.3);
+    const hrRatio = adjustedHR / TARGET_HR;
+    return parseFloat(((pace / adjustedHR) * distFactor * hrRatio).toFixed(3));
   }
 }
 
 function getEfficiencyPct(score, type) {
   if (!score) return null;
   if (type === "Easy") {
-    // Higher score = better, EASY_TARGET = 95%
+    // Higher = better, 95% target = EASY_TARGET
     return Math.round((score / EASY_TARGET) * TARGET_PCT);
   } else if (type === "Tempo") {
-    // Lower score = better, TEMPO_TARGET = 95%
-    return Math.round((TEMPO_TARGET / score) * TARGET_PCT);
+    // Target at 95%: 10km at 4:53/km HR155
+    // score = (293/155) * 1.0 * 1.0 * 1.0 = 1.890
+    const target = (GOAL_10K_PACE / TARGET_HR) * 1.0 * 1.0 * 1.0;
+    return Math.round((score / target) * TARGET_PCT);
   } else {
-    // Lower score = better, LONG_TARGET = 95%
-    return Math.round((LONG_TARGET / score) * TARGET_PCT);
+    // Target at 95%: 42.2km at 5:20/km HR155
+    // score = (320/155) * 1.0 * 1.0 = 2.065
+    const target = (GOAL_MARATHON_PACE / TARGET_HR) * 1.0 * 1.0;
+    return Math.round((score / target) * TARGET_PCT);
   }
 }
 
@@ -955,7 +955,7 @@ function SummaryPanel({ runs }) {
     const typeRuns = runs.filter((r) => r.type === t);
     const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
     if (scores.length) {
-      const bestScore = Math.min(...scores);
+      const bestScore = Math.max(...scores);
       const pct = getEfficiencyPct(bestScore, t);
       weightedEffSum += pct * TYPE_EFF_WEIGHTS[t];
       totalEffWeight += TYPE_EFF_WEIGHTS[t];
@@ -1087,7 +1087,7 @@ function SummaryPanel({ runs }) {
             {["Easy", "Tempo", "Long"].map((t) => {
               const typeRuns = runs.filter((r) => r.type === t);
               const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
-              const best = scores.length ? (t === "Easy" ? Math.max(...scores) : Math.min(...scores)) : null;
+              const best = scores.length ? Math.max(...scores) : null;
               const bestPct = best ? getEfficiencyPct(best, t) : null;
               const bestRun = best ? typeRuns.find((r) => calcEfficiency(r) === best) : null;
               const rating = bestPct ? getEfficiencyRating(bestPct) : null;
