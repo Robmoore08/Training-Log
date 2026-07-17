@@ -235,18 +235,22 @@ function calcEfficiency(run) {
   }
 }
 
-function getEfficiencyPct(score, type) {
+function getEfficiencyPct(score) {
   if (!score) return null;
-  if (type === "Easy") {
-    // Score is self-normalized: 1.0 = exactly target pace at target HR
-    return Math.round(score * TARGET_PCT);
-  } else if (type === "Tempo") {
-    // Score is self-normalized: 1.0 = exactly goal pace at goal HR over 10km
-    return Math.round(score * TARGET_PCT);
-  } else {
-    // Score is self-normalized: 1.0 = exactly goal pace at goal HR over 42.2km
-    return Math.round(score * TARGET_PCT);
-  }
+  // Score is self-normalized: 1.0 = exactly target pace at target HR (distance-scaled for Tempo/Long)
+  return Math.round(score * TARGET_PCT);
+}
+
+// Recency-weighted average of the last N runs of a type — reflects CURRENT form,
+// unlike a personal-best which only ever holds steady or climbs.
+function getRollingEfficiencyPct(typeRuns, weights = [0.4, 0.3, 0.2, 0.1]) {
+  const sorted = [...typeRuns].sort((a, b) => b.date.localeCompare(a.date));
+  const scores = sorted.map((r) => calcEfficiency(r)).filter((s) => s !== null).slice(0, weights.length);
+  if (!scores.length) return null;
+  const w = weights.slice(0, scores.length);
+  const wSum = w.reduce((a, b) => a + b, 0);
+  const weightedScore = scores.reduce((sum, s, i) => sum + s * w[i], 0) / wSum;
+  return getEfficiencyPct(weightedScore);
 }
 
 function getEfficiencyRating(pct) {
@@ -437,7 +441,7 @@ function RunCard({ run, onDelete, onEdit }) {
   const hasSplits = run.splits?.some((s) => s);
   const zone = run.avgHR ? getHRZone(run.avgHR) : null;
   const efficiency = calcEfficiency(run);
-  const effPct = efficiency ? getEfficiencyPct(efficiency, run.type) : null;
+  const effPct = efficiency ? getEfficiencyPct(efficiency) : null;
   const effRating = effPct ? getEfficiencyRating(effPct) : null;
   return (
     <div style={{ background: "#111d2b", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #1e3048" }}>
@@ -797,7 +801,7 @@ function RunTypePanel({ type, runs }) {
           <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
           {typeRuns.some(r => calcEfficiency(r)) && (
             <MiniChart
-              runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r), r.type) }))}
+              runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r)) }))}
               field="effPct"
               label="Efficiency % (95% = 3:45 target)"
               unit="%"
@@ -944,37 +948,37 @@ function SummaryPanel({ runs }) {
     predictionNote = `Weighted avg pace ${secondsToPace(weightedPace)}/km · Avg HR ${weightedHR.toFixed(0)} bpm · Based on: ${typesUsed}`;
   }
 
-  // Overall weighted efficiency — Tempo + Long only for race efficiency
+  // Race Efficiency (current form) — rolling weighted avg of last 4 Tempo + Long runs, combined 35/65
   const TYPE_EFF_WEIGHTS = { Tempo: 0.35, Long: 0.65 };
   let overallEff = null;
-  let totalEffWeight = 0;
-  let weightedEffSum = 0;
-
-  ["Tempo", "Long"].forEach((t) => {
-    const typeRuns = runs.filter((r) => r.type === t);
-    const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
-    if (scores.length) {
-      const bestScore = Math.max(...scores);
-      const pct = getEfficiencyPct(bestScore, t);
-      weightedEffSum += pct * TYPE_EFF_WEIGHTS[t];
-      totalEffWeight += TYPE_EFF_WEIGHTS[t];
-    }
-  });
-
-  if (totalEffWeight > 0) {
-    overallEff = Math.round(weightedEffSum / totalEffWeight);
+  let overallBest = null;
+  {
+    let totalEffWeight = 0, weightedEffSum = 0;
+    let totalBestWeight = 0, weightedBestSum = 0;
+    ["Tempo", "Long"].forEach((t) => {
+      const typeRuns = runs.filter((r) => r.type === t);
+      const rollingPct = getRollingEfficiencyPct(typeRuns);
+      if (rollingPct !== null) {
+        weightedEffSum += rollingPct * TYPE_EFF_WEIGHTS[t];
+        totalEffWeight += TYPE_EFF_WEIGHTS[t];
+      }
+      const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
+      if (scores.length) {
+        const bestPct = getEfficiencyPct(Math.max(...scores));
+        weightedBestSum += bestPct * TYPE_EFF_WEIGHTS[t];
+        totalBestWeight += TYPE_EFF_WEIGHTS[t];
+      }
+    });
+    if (totalEffWeight > 0) overallEff = Math.round(weightedEffSum / totalEffWeight);
+    if (totalBestWeight > 0) overallBest = Math.round(weightedBestSum / totalBestWeight);
   }
 
-  // Easy efficiency separately
+  // Easy Efficiency (current form) — rolling weighted avg of last 4 Easy runs
   const easyRuns = runs.filter((r) => r.type === "Easy");
-  const easyScores = easyRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
-  const bestEasyScore = easyScores.length ? Math.max(...easyScores) : null;
-  const easyEff = bestEasyScore ? getEfficiencyPct(bestEasyScore, "Easy") : null;
+  const easyEff = getRollingEfficiencyPct(easyRuns);
   const easyEffRating = easyEff ? getEfficiencyRating(easyEff) : null;
-
-  if (totalEffWeight > 0) {
-    overallEff = Math.round(weightedEffSum / totalEffWeight);
-  }
+  const easyScoresAll = easyRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
+  const easyBest = easyScoresAll.length ? getEfficiencyPct(Math.max(...easyScoresAll)) : null;
 
   const overallEffRating = overallEff ? getEfficiencyRating(overallEff) : null;
 
@@ -989,6 +993,7 @@ function SummaryPanel({ runs }) {
             <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Easy Efficiency</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: easyEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{easyEff}%</div>
             <div style={{ fontSize: 12, color: easyEffRating.color, marginTop: 4 }}>{easyEffRating.label}</div>
+            {easyBest !== null && <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 6 }}>Best: {easyBest}%</div>}
             <div style={{ fontSize: 9, color: "#3a5068", marginTop: 4 }}>95% = 6:20 @ Z2 + cadence</div>
           </div>
         )}
@@ -997,6 +1002,7 @@ function SummaryPanel({ runs }) {
             <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Race Efficiency</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
             <div style={{ fontSize: 12, color: overallEffRating.color, marginTop: 4 }}>{overallEffRating.label}</div>
+            {overallBest !== null && <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 6 }}>Best: {overallBest}%</div>}
             <div style={{ fontSize: 9, color: "#3a5068", marginTop: 4 }}>95% = on track for 3:45</div>
           </div>
         )}
@@ -1081,13 +1087,13 @@ function SummaryPanel({ runs }) {
       {/* Efficiency personal bests */}
       {runs.length >= 2 && (
         <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Efficiency vs Target</div>
+          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Personal Bests</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["Easy", "Tempo", "Long"].map((t) => {
               const typeRuns = runs.filter((r) => r.type === t);
               const scores = typeRuns.map((r) => calcEfficiency(r)).filter((s) => s !== null);
               const best = scores.length ? Math.max(...scores) : null;
-              const bestPct = best ? getEfficiencyPct(best, t) : null;
+              const bestPct = best ? getEfficiencyPct(best) : null;
               const bestRun = best ? typeRuns.find((r) => calcEfficiency(r) === best) : null;
               const rating = bestPct ? getEfficiencyRating(bestPct) : null;
               const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
