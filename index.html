@@ -432,6 +432,8 @@ function StatBadge({ label, value, unit = "" }) {
 }
 
 function MiniChart({ runs, field, label, unit = "", transform, reverse }) {
+  const [activeIndex, setActiveIndex] = useState(null);
+
   const vals = runs
     .slice(-10)
     .map((r) => ({ date: r.date, val: transform ? transform(r[field]) : parseFloat(r[field]) }))
@@ -460,19 +462,62 @@ function MiniChart({ runs, field, label, unit = "", transform, reverse }) {
     ? latest.val < prev.val ? "#16a34a" : "#dc2626"
     : latest.val > prev.val ? "#16a34a" : "#dc2626";
 
+  const fmtVal = (v) => (unit === "min/km" ? secondsToPace(v) : `${v.toFixed(1)}${unit}`);
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   return (
     <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <span style={{ fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: trendColor }}>{trend} {unit === "min/km" ? secondsToPace(latest.val) : latest.val.toFixed(1)}{unit !== "min/km" ? unit : ""}</span>
       </div>
-      <svg width={W} height={H} style={{ overflow: "visible" }}>
+      <svg width={W} height={H} style={{ overflow: "visible" }} onClick={() => setActiveIndex(null)}>
         <polyline points={pts.join(" ")} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {vals.map((d, i) => {
           const x = PAD + (i / (vals.length - 1)) * (W - PAD * 2);
           const norm = (d.val - min) / range;
           const y = PAD + (reverse ? norm : 1 - norm) * (H - PAD * 2);
-          return <circle key={i} cx={x} cy={y} r={3} fill="#2563eb" />;
+          const active = activeIndex === i;
+          return (
+            <g key={i}>
+              {active && (
+                <>
+                  <line x1={x} y1={0} x2={x} y2={H} stroke="#2563eb" strokeWidth={1} strokeDasharray="3 3" opacity={0.35} />
+                  <rect
+                    x={Math.min(Math.max(x - 30, 0), W - 60)}
+                    y={y > H / 2 ? y - 30 : y + 8}
+                    width={60} height={22} rx={5}
+                    fill="#0f172a"
+                  />
+                  <text
+                    x={Math.min(Math.max(x, 30), W - 30)}
+                    y={(y > H / 2 ? y - 30 : y + 8) + 14}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fontWeight={700}
+                    fill="#ffffff"
+                  >
+                    {fmtVal(d.val)}
+                  </text>
+                  <text
+                    x={Math.min(Math.max(x, 30), W - 30)}
+                    y={(y > H / 2 ? y - 30 : y + 8) + 20}
+                    textAnchor="middle"
+                    fontSize={7}
+                    fill="#cbd5e1"
+                  >
+                    {fmtDate(d.date)}
+                  </text>
+                </>
+              )}
+              <circle cx={x} cy={y} r={active ? 5 : 3} fill="#2563eb" stroke={active ? "#ffffff" : "none"} strokeWidth={active ? 1.5 : 0} />
+              <circle
+                cx={x} cy={y} r={14} fill="rgba(0,0,0,0.001)"
+                onClick={(e) => { e.stopPropagation(); setActiveIndex(active ? null : i); }}
+                style={{ cursor: "pointer", pointerEvents: "all" }}
+              />
+            </g>
+          );
         })}
       </svg>
     </div>
@@ -480,6 +525,7 @@ function MiniChart({ runs, field, label, unit = "", transform, reverse }) {
 }
 
 function DualChart({ runs }) {
+  const [activeIndex, setActiveIndex] = useState(null);
   const W = 280, H = 90, PAD = 10;
 
   const data = runs.slice(-10).map((r) => ({
@@ -516,6 +562,8 @@ function DualChart({ runs }) {
   const latestPace = data[data.length - 1].pace;
   const prevPace = data[data.length - 2].pace;
 
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   return (
     <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -529,17 +577,42 @@ function DualChart({ runs }) {
           </span>
         </div>
       </div>
-      <svg width={W} height={H} style={{ overflow: "visible", width: "100%" }}>
+      <svg width={W} height={H} style={{ overflow: "visible", width: "100%" }} onClick={() => setActiveIndex(null)}>
         <polyline points={hrPts.join(" ")} fill="none" stroke="#ea580c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         <polyline points={pacePts.join(" ")} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
         {data.map((d, i) => {
           const x = PAD + (i / (data.length - 1)) * (W - PAD * 2);
           const hrY = PAD + (1 - (d.hr - hrMin) / hrRange) * (H - PAD * 2);
           const paceY = PAD + ((d.pace - paceMin) / paceRange) * (H - PAD * 2);
+          const active = activeIndex === i;
+          const topY = Math.min(hrY, paceY);
+          const boxY = topY > 34 ? topY - 34 : Math.max(hrY, paceY) + 10;
           return (
             <g key={i}>
-              <circle cx={x} cy={hrY} r={3} fill="#ea580c" />
-              <circle cx={x} cy={paceY} r={3} fill="#2563eb" />
+              {active && (
+                <>
+                  <line x1={x} y1={0} x2={x} y2={H} stroke="#94a3b8" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+                  <rect x={Math.min(Math.max(x - 34, 0), W - 68)} y={boxY} width={68} height={34} rx={5} fill="#0f172a" />
+                  <text x={Math.min(Math.max(x, 34), W - 34)} y={boxY + 13} textAnchor="middle" fontSize={10} fontWeight={700} fill="#fb923c">
+                    {d.hr.toFixed(0)} bpm
+                  </text>
+                  <text x={Math.min(Math.max(x, 34), W - 34)} y={boxY + 25} textAnchor="middle" fontSize={10} fontWeight={700} fill="#60a5fa">
+                    {secondsToPace(d.pace)}/km
+                  </text>
+                </>
+              )}
+              <circle cx={x} cy={hrY} r={active ? 5 : 3} fill="#ea580c" stroke={active ? "#ffffff" : "none"} strokeWidth={active ? 1.5 : 0} />
+              <circle cx={x} cy={paceY} r={active ? 5 : 3} fill="#2563eb" stroke={active ? "#ffffff" : "none"} strokeWidth={active ? 1.5 : 0} />
+              <circle
+                cx={x} cy={hrY} r={14} fill="rgba(0,0,0,0.001)"
+                onClick={(e) => { e.stopPropagation(); setActiveIndex(active ? null : i); }}
+                style={{ cursor: "pointer", pointerEvents: "all" }}
+              />
+              <circle
+                cx={x} cy={paceY} r={14} fill="rgba(0,0,0,0.001)"
+                onClick={(e) => { e.stopPropagation(); setActiveIndex(active ? null : i); }}
+                style={{ cursor: "pointer", pointerEvents: "all" }}
+              />
             </g>
           );
         })}
