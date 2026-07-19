@@ -9,11 +9,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #08111a; font-family: system-ui, sans-serif; }
+    body { background: #f8fafc; font-family: system-ui, sans-serif; }
     input, select, textarea, button { font-family: inherit; }
     ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #08111a; }
-    ::-webkit-scrollbar-thumb { background: #1e3048; border-radius: 2px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 2px; }
   </style>
 </head>
 <body>
@@ -375,22 +375,22 @@ function getRollingEfficiencyPct(typeRuns, weights = [0.4, 0.3, 0.2, 0.1]) {
 
 function getEfficiencyRating(pct) {
   if (!pct) return null;
-  if (pct >= 100) return { label: "Beyond target", color: "#a78bfa" };
-  if (pct >= 95) return { label: "On target", color: "#4ade80" };
-  if (pct >= 80) return { label: "Good progress", color: "#facc15" };
-  if (pct >= 65) return { label: "Building", color: "#f97316" };
-  return { label: "Early days", color: "#f87171" };
+  if (pct >= 100) return { label: "Beyond target", color: "#7c3aed" };
+  if (pct >= 95) return { label: "On target", color: "#16a34a" };
+  if (pct >= 80) return { label: "Good progress", color: "#d97706" };
+  if (pct >= 65) return { label: "Building", color: "#ea580c" };
+  return { label: "Early days", color: "#dc2626" };
 }
 
 
 function getHRZone(hr) {
   const h = parseInt(hr);
   if (!h) return null;
-  if (h < 108) return { zone: "Z1", label: "Recovery", color: "#60a5fa" };
-  if (h < 130) return { zone: "Z2", label: "Easy/Aerobic", color: "#4ade80" };
-  if (h < 148) return { zone: "Z3", label: "Steady/Long Run", color: "#facc15" };
-  if (h < 162) return { zone: "Z4", label: "Marathon Zone", color: "#f97316" };
-  return { zone: "Z5", label: "Max/Intervals", color: "#f87171" };
+  if (h < 108) return { zone: "Z1", label: "Recovery", color: "#2563eb" };
+  if (h < 130) return { zone: "Z2", label: "Easy/Aerobic", color: "#16a34a" };
+  if (h < 148) return { zone: "Z3", label: "Steady/Long Run", color: "#d97706" };
+  if (h < 162) return { zone: "Z4", label: "Marathon Zone", color: "#ea580c" };
+  return { zone: "Z5", label: "Max/Intervals", color: "#dc2626" };
 }
 
 function kphToAdjustedPace(kph) {
@@ -421,11 +421,11 @@ function secondsToPace(s) {
 
 function StatBadge({ label, value, unit = "" }) {
   return (
-    <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80 }}>
-      <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>
-        {value || <span style={{ color: "#334" }}>--</span>}
-        {value && unit && <span style={{ fontSize: 13, color: "#7a9bb5", marginLeft: 2 }}>{unit}</span>}
+    <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80 }}>
+      <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>
+        {value || <span style={{ color: "#cbd5e1" }}>--</span>}
+        {value && unit && <span style={{ fontSize: 13, color: "#64748b", marginLeft: 2 }}>{unit}</span>}
       </div>
     </div>
   );
@@ -457,22 +457,22 @@ function MiniChart({ runs, field, label, unit = "", transform, reverse }) {
     ? latest.val < prev.val ? "↓" : latest.val > prev.val ? "↑" : "→"
     : latest.val > prev.val ? "↑" : latest.val < prev.val ? "↓" : "→";
   const trendColor = reverse
-    ? latest.val < prev.val ? "#4ade80" : "#f87171"
-    : latest.val > prev.val ? "#4ade80" : "#f87171";
+    ? latest.val < prev.val ? "#16a34a" : "#dc2626"
+    : latest.val > prev.val ? "#16a34a" : "#dc2626";
 
   return (
-    <div style={{ background: "#0f1923", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+    <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 12, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+        <span style={{ fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: trendColor }}>{trend} {unit === "min/km" ? secondsToPace(latest.val) : latest.val.toFixed(1)}{unit !== "min/km" ? unit : ""}</span>
       </div>
       <svg width={W} height={H} style={{ overflow: "visible" }}>
-        <polyline points={pts.join(" ")} fill="none" stroke="#3b7dd8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pts.join(" ")} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {vals.map((d, i) => {
           const x = PAD + (i / (vals.length - 1)) * (W - PAD * 2);
           const norm = (d.val - min) / range;
           const y = PAD + (reverse ? norm : 1 - norm) * (H - PAD * 2);
-          return <circle key={i} cx={x} cy={y} r={3} fill="#3b7dd8" />;
+          return <circle key={i} cx={x} cy={y} r={3} fill="#2563eb" />;
         })}
       </svg>
     </div>
@@ -517,39 +517,39 @@ function DualChart({ runs }) {
   const prevPace = data[data.length - 2].pace;
 
   return (
-    <div style={{ background: "#0f1923", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+    <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em" }}>HR vs Pace</span>
+        <span style={{ fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em" }}>HR vs Pace</span>
         <div style={{ display: "flex", gap: 12 }}>
-          <span style={{ fontSize: 12, color: "#f97316", fontWeight: 700 }}>
+          <span style={{ fontSize: 12, color: "#ea580c", fontWeight: 700 }}>
             {latestHR < prevHR ? "↓" : latestHR > prevHR ? "↑" : "→"} {latestHR.toFixed(0)} bpm
           </span>
-          <span style={{ fontSize: 12, color: "#3b7dd8", fontWeight: 700 }}>
+          <span style={{ fontSize: 12, color: "#2563eb", fontWeight: 700 }}>
             {latestPace < prevPace ? "↑" : latestPace > prevPace ? "↓" : "→"} {secondsToPace(latestPace)}/km
           </span>
         </div>
       </div>
       <svg width={W} height={H} style={{ overflow: "visible", width: "100%" }}>
-        <polyline points={hrPts.join(" ")} fill="none" stroke="#f97316" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        <polyline points={pacePts.join(" ")} fill="none" stroke="#3b7dd8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
+        <polyline points={hrPts.join(" ")} fill="none" stroke="#ea580c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pacePts.join(" ")} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
         {data.map((d, i) => {
           const x = PAD + (i / (data.length - 1)) * (W - PAD * 2);
           const hrY = PAD + (1 - (d.hr - hrMin) / hrRange) * (H - PAD * 2);
           const paceY = PAD + ((d.pace - paceMin) / paceRange) * (H - PAD * 2);
           return (
             <g key={i}>
-              <circle cx={x} cy={hrY} r={3} fill="#f97316" />
-              <circle cx={x} cy={paceY} r={3} fill="#3b7dd8" />
+              <circle cx={x} cy={hrY} r={3} fill="#ea580c" />
+              <circle cx={x} cy={paceY} r={3} fill="#2563eb" />
             </g>
           );
         })}
       </svg>
       <div style={{ display: "flex", gap: 16, marginTop: 6, justifyContent: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#7a9bb5" }}>
-          <div style={{ width: 16, height: 2, background: "#f97316", borderRadius: 1 }} /> HR
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#64748b" }}>
+          <div style={{ width: 16, height: 2, background: "#ea580c", borderRadius: 1 }} /> HR
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#7a9bb5" }}>
-          <div style={{ width: 16, height: 2, background: "#3b7dd8", borderRadius: 1, borderTop: "2px dashed #3b7dd8" }} /> Pace
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#64748b" }}>
+          <div style={{ width: 16, height: 2, background: "#2563eb", borderRadius: 1, borderTop: "2px dashed #2563eb" }} /> Pace
         </div>
       </div>
     </div>
@@ -564,21 +564,21 @@ function RunCard({ run, onDelete, onEdit }) {
   const effPct = efficiency ? getEfficiencyPct(efficiency) : null;
   const effRating = effPct ? getEfficiencyRating(effPct) : null;
   return (
-    <div style={{ background: "#111d2b", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #1e3048" }}>
+    <div style={{ background: "#ffffff", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #e2e8f0" }}>
       <div
         onClick={() => setExpanded(!expanded)}
         style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer" }}
       >
-        <span style={{ fontSize: 12, color: "#7a9bb5", minWidth: 80 }}>{run.date}</span>
-        <span style={{ fontSize: 13, color: "#e8f4ff", flex: 1, fontWeight: 600 }}>
+        <span style={{ fontSize: 12, color: "#64748b", minWidth: 80 }}>{run.date}</span>
+        <span style={{ fontSize: 13, color: "#0f172a", flex: 1, fontWeight: 600 }}>
           {run.distance ? `${run.distance} km` : "—"} · {run.time || "—"}
-          {run.indoor && <span style={{ marginLeft: 6, fontSize: 11, color: "#7a9bb5", background: "#1e3048", borderRadius: 4, padding: "1px 6px" }}>Indoor</span>}
+          {run.indoor && <span style={{ marginLeft: 6, fontSize: 11, color: "#64748b", background: "#e2e8f0", borderRadius: 4, padding: "1px 6px" }}>Indoor</span>}
         </span>
-        <span style={{ fontSize: 12, color: "#7a9bb5" }}>{run.avgPace ? `${run.avgPace}/km` : ""}</span>
-        <span style={{ fontSize: 14, color: "#3b7dd8" }}>{expanded ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 12, color: "#64748b" }}>{run.avgPace ? `${run.avgPace}/km` : ""}</span>
+        <span style={{ fontSize: 14, color: "#2563eb" }}>{expanded ? "▲" : "▼"}</span>
       </div>
       {expanded && (
-        <div style={{ padding: "0 14px 14px", borderTop: "1px solid #1e3048" }}>
+        <div style={{ padding: "0 14px 14px", borderTop: "1px solid #e2e8f0" }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             <StatBadge label="Avg HR" value={run.avgHR} unit="bpm" />
             <StatBadge label="Max HR" value={run.maxHR} unit="bpm" />
@@ -586,15 +586,15 @@ function RunCard({ run, onDelete, onEdit }) {
             <StatBadge label="Elevation" value={run.elevationGain} unit="m" />
             {run.rpe && <StatBadge label="RPE" value={`${run.rpe}/10`} />}
             {zone && (
-              <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80, border: `1px solid ${zone.color}44` }}>
-                <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Zone</div>
+              <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80, border: `1px solid ${zone.color}66` }}>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Zone</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: zone.color }}>{zone.zone}</div>
                 <div style={{ fontSize: 10, color: zone.color, opacity: 0.8 }}>{zone.label}</div>
               </div>
             )}
             {effPct && effRating && (
-              <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80, border: `1px solid ${effRating.color}44` }}>
-                <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Efficiency</div>
+              <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80, border: `1px solid ${effRating.color}66` }}>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Efficiency</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: effRating.color }}>{effPct}%</div>
                 <div style={{ fontSize: 10, color: effRating.color, opacity: 0.8 }}>{effRating.label}</div>
               </div>
@@ -602,10 +602,10 @@ function RunCard({ run, onDelete, onEdit }) {
           </div>
           {hasSplits && (
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Splits</div>
+              <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Splits</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {run.splits.filter((s) => s).map((s, i) => (
-                  <div key={i} style={{ background: "#0f1923", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e8f4ff", fontFamily: "monospace" }}>
+                  <div key={i} style={{ background: "#f1f5f9", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#0f172a", fontFamily: "monospace" }}>
                     {i + 1}: {s}
                   </div>
                 ))}
@@ -613,29 +613,29 @@ function RunCard({ run, onDelete, onEdit }) {
             </div>
           )}
           {run.shoe && (
-            <div style={{ marginTop: 10, fontSize: 12, color: "#7a9bb5" }}>
-              👟 <span style={{ color: "#c8dff5" }}>{run.shoe}</span>
+            <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>
+              👟 <span style={{ color: "#334155" }}>{run.shoe}</span>
               {run.temperature && <span style={{ marginLeft: 12 }}>🌡 {run.temperature}°C</span>}
               {run.humidity && <span style={{ marginLeft: 8 }}>💧 {run.humidity}%</span>}
-              {run.weight && <span style={{ marginLeft: 12 }}>⚖️ <span style={{ color: "#c8dff5" }}>{run.weight} lbs</span></span>}
-              {run.vo2max && <span style={{ marginLeft: 12 }}>❤️ VO2 <span style={{ color: "#c8dff5" }}>{run.vo2max}</span></span>}
+              {run.weight && <span style={{ marginLeft: 12 }}>⚖️ <span style={{ color: "#334155" }}>{run.weight} lbs</span></span>}
+              {run.vo2max && <span style={{ marginLeft: 12 }}>❤️ VO2 <span style={{ color: "#334155" }}>{run.vo2max}</span></span>}
             </div>
           )}
           {run.comments && (
-            <div style={{ marginTop: 10, fontSize: 13, color: "#b0cae0", background: "#0f1923", borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
+            <div style={{ marginTop: 10, fontSize: 13, color: "#334155", background: "#f1f5f9", borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
               {run.comments}
             </div>
           )}
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button
               onClick={() => onEdit(run)}
-              style={{ background: "none", border: "1px solid #1e3048", color: "#7a9bb5", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
+              style={{ background: "none", border: "1px solid #e2e8f0", color: "#64748b", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
             >
               Edit
             </button>
             <button
               onClick={() => onDelete(run.id)}
-              style={{ background: "none", border: "1px solid #3b2030", color: "#f87171", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
+              style={{ background: "none", border: "1px solid #fecaca", color: "#dc2626", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}
             >
               Delete run
             </button>
@@ -667,21 +667,21 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
   };
 
   const inputStyle = {
-    background: "#0f1923",
-    border: "1px solid #1e3048",
+    background: "#f1f5f9",
+    border: "1px solid #e2e8f0",
     borderRadius: 6,
-    color: "#e8f4ff",
+    color: "#0f172a",
     padding: "7px 10px",
     fontSize: 13,
     width: "100%",
     boxSizing: "border-box",
   };
-  const labelStyle = { fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, display: "block" };
+  const labelStyle = { fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, display: "block" };
   const fieldStyle = { marginBottom: 14 };
 
   return (
-    <div style={{ background: "#111d2b", borderRadius: 12, padding: 18, border: "1px solid #1e3048" }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#3b7dd8", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+    <div style={{ background: "#ffffff", borderRadius: 12, padding: 18, border: "1px solid #e2e8f0" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#2563eb", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.1em" }}>
         {initialRun ? `✏️ Edit ${type} Run` : `+ New ${type} Run`}
       </div>
 
@@ -691,8 +691,8 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
           <input type="date" style={inputStyle} value={form.date} onChange={(e) => set("date", e.target.value)} />
         </div>
         <div style={{ ...fieldStyle, display: "flex", alignItems: "center", gap: 8, paddingTop: 18 }}>
-          <input type="checkbox" id="indoor" checked={form.indoor} onChange={(e) => set("indoor", e.target.checked)} style={{ accentColor: "#3b7dd8" }} />
-          <label htmlFor="indoor" style={{ ...labelStyle, marginBottom: 0, textTransform: "none", fontSize: 13, color: "#c8dff5" }}>Indoor</label>
+          <input type="checkbox" id="indoor" checked={form.indoor} onChange={(e) => set("indoor", e.target.checked)} style={{ accentColor: "#2563eb" }} />
+          <label htmlFor="indoor" style={{ ...labelStyle, marginBottom: 0, textTransform: "none", fontSize: 13, color: "#334155" }}>Indoor</label>
         </div>
       </div>
 
@@ -742,13 +742,13 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <label style={labelStyle}>Treadmill Speed (kph)</label>
             {form.avgKph && (
-              <span style={{ fontSize: 11, color: "#3b7dd8" }}>
+              <span style={{ fontSize: 11, color: "#2563eb" }}>
                 → {kphToAdjustedPace(form.avgKph)} /km (outdoor equiv.)
               </span>
             )}
           </div>
-          <input type="number" step="0.1" style={{ ...inputStyle, borderColor: "#3b7dd8" }} value={form.avgKph} onChange={(e) => set("avgKph", e.target.value)} placeholder="e.g. 10.5" />
-          <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 4 }}>Adjusted for 1% incline · saved as outdoor-equivalent pace</div>
+          <input type="number" step="0.1" style={{ ...inputStyle, borderColor: "#2563eb" }} value={form.avgKph} onChange={(e) => set("avgKph", e.target.value)} placeholder="e.g. 10.5" />
+          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Adjusted for 1% incline · saved as outdoor-equivalent pace</div>
         </div>
       )}
 
@@ -758,7 +758,7 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
             {form.splits.map((s, i) => (
               <div key={i}>
-                <div style={{ fontSize: 10, color: "#5a7a94", textAlign: "center", marginBottom: 3 }}>km {i + 1}</div>
+                <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginBottom: 3 }}>km {i + 1}</div>
                 <input type="text" style={inputStyle} value={s} onChange={(e) => setSplit(i, e.target.value)} placeholder="5:30" />
               </div>
             ))}
@@ -801,7 +801,7 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
         <label style={labelStyle}>RPE — How hard did it feel? (1–10)</label>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {[1,2,3,4,5,6,7,8,9,10].map((n) => {
-            const color = n <= 3 ? "#22c55e" : n <= 5 ? "#84cc16" : n <= 7 ? "#f59e0b" : "#f87171";
+            const color = n <= 3 ? "#16a34a" : n <= 5 ? "#84cc16" : n <= 7 ? "#d97706" : "#dc2626";
             const selected = form.rpe === String(n);
             return (
               <button
@@ -809,8 +809,8 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
                 type="button"
                 onClick={() => set("rpe", selected ? "" : String(n))}
                 style={{
-                  width: 36, height: 36, borderRadius: 8, border: `2px solid ${selected ? color : "#1e3048"}`,
-                  background: selected ? color + "22" : "none", color: selected ? color : "#5a7a94",
+                  width: 36, height: 36, borderRadius: 8, border: `2px solid ${selected ? color : "#e2e8f0"}`,
+                  background: selected ? color + "22" : "none", color: selected ? color : "#94a3b8",
                   fontSize: 14, fontWeight: 700, cursor: "pointer",
                 }}
               >
@@ -819,7 +819,7 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
             );
           })}
         </div>
-        <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 5 }}>
+        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 5 }}>
           1–3 easy · 4–5 moderate · 6–7 hard · 8–9 very hard · 10 max
         </div>
       </div>
@@ -830,10 +830,10 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-        <button onClick={handleSave} style={{ flex: 1, background: "#3b7dd8", color: "#fff", border: "none", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em" }}>
+        <button onClick={handleSave} style={{ flex: 1, background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em" }}>
           {initialRun ? "Update Run" : "Save Run"}
         </button>
-        <button onClick={onCancel} style={{ background: "none", border: "1px solid #1e3048", color: "#7a9bb5", borderRadius: 8, padding: "10px 16px", fontSize: 14, cursor: "pointer" }}>
+        <button onClick={onCancel} style={{ background: "none", border: "1px solid #e2e8f0", color: "#64748b", borderRadius: 8, padding: "10px 16px", fontSize: 14, cursor: "pointer" }}>
           Cancel
         </button>
       </div>
@@ -890,7 +890,7 @@ function RunTypePanel({ type, runs }) {
     return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
   };
 
-  const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+  const typeColors = { Easy: "#16a34a", Tempo: "#d97706", Long: "#7c3aed" };
   const color = typeColors[type];
 
   const avgPaceDisplay = (() => {
@@ -903,7 +903,7 @@ function RunTypePanel({ type, runs }) {
       {/* Summary bar */}
       {typeRuns.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
             Averages across {typeRuns.length} {type.toLowerCase()} run{typeRuns.length !== 1 ? "s" : ""}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -918,7 +918,7 @@ function RunTypePanel({ type, runs }) {
       {/* Trend charts */}
       {typeRuns.length >= 2 && (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Trends (last 10)</div>
           {typeRuns.some(r => calcEfficiency(r)) && (
             <MiniChart
               runs={[...typeRuns].reverse().map(r => ({ ...r, effPct: getEfficiencyPct(calcEfficiency(r)) }))}
@@ -947,7 +947,7 @@ function RunTypePanel({ type, runs }) {
 
       {/* Run history */}
       {typeRuns.length === 0 && !adding && !editingRun && (
-        <div style={{ textAlign: "center", color: "#3a5068", padding: "40px 0", fontSize: 14 }}>
+        <div style={{ textAlign: "center", color: "#94a3b8", padding: "40px 0", fontSize: 14 }}>
           No {type.toLowerCase()} runs logged yet. Add your first one above.
         </div>
       )}
@@ -957,7 +957,7 @@ function RunTypePanel({ type, runs }) {
 }
 
 function SummaryPanel({ runs }) {
-  const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+  const typeColors = { Easy: "#16a34a", Tempo: "#d97706", Long: "#7c3aed" };
   const weeklyKms = getWeeklyKm(runs);
 
   // Build last 12 weeks of data
@@ -1102,62 +1102,62 @@ function SummaryPanel({ runs }) {
 
   const overallEffRating = overallEff ? getEfficiencyRating(overallEff) : null;
 
-  const likelihoodColor = likelihood >= 70 ? "#4ade80" : likelihood >= 45 ? "#f59e0b" : "#f87171";
+  const likelihoodColor = likelihood >= 70 ? "#16a34a" : likelihood >= 45 ? "#d97706" : "#dc2626";
 
   return (
     <div>
       {/* Efficiency ratings */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         {easyEff && easyEffRating && (
-          <div style={{ flex: 1, background: "#0f1923", borderRadius: 10, padding: "14px", border: `1px solid ${easyEffRating.color}44`, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Easy Efficiency</div>
+          <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 10, padding: "14px", border: `1px solid ${easyEffRating.color}66`, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Easy Efficiency</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: easyEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{easyEff}%</div>
             <div style={{ fontSize: 12, color: easyEffRating.color, marginTop: 4 }}>{easyEffRating.label}</div>
-            {easyBest !== null && <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 6 }}>Best: {easyBest}%</div>}
-            <div style={{ fontSize: 9, color: "#3a5068", marginTop: 4 }}>95% = 6:20 @ Z2 + cadence</div>
+            {easyBest !== null && <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6 }}>Best: {easyBest}%</div>}
+            <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 4 }}>95% = 6:20 @ Z2 + cadence</div>
           </div>
         )}
         {overallEff !== null && overallEffRating && (
-          <div style={{ flex: 1, background: "#0f1923", borderRadius: 10, padding: "14px", border: `1px solid ${overallEffRating.color}44`, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Race Efficiency</div>
+          <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 10, padding: "14px", border: `1px solid ${overallEffRating.color}66`, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Race Efficiency</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
             <div style={{ fontSize: 12, color: overallEffRating.color, marginTop: 4 }}>{overallEffRating.label}</div>
-            {overallBest !== null && <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 6 }}>Best: {overallBest}%</div>}
-            <div style={{ fontSize: 9, color: "#3a5068", marginTop: 4 }}>95% = on track for 3:45</div>
+            {overallBest !== null && <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6 }}>Best: {overallBest}%</div>}
+            <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 4 }}>95% = on track for 3:45</div>
           </div>
         )}
         {!easyEff && !overallEff && (
-          <div style={{ flex: 1, background: "#0f1923", borderRadius: 10, padding: "20px", textAlign: "center" }}>
-            <div style={{ fontSize: 12, color: "#3a5068" }}>Log runs with pace + HR to see efficiency</div>
+          <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 10, padding: "20px", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>Log runs with pace + HR to see efficiency</div>
           </div>
         )}
       </div>
       {/* Race prediction */}
-      <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20, border: "1px solid #1e3048" }}>
-        <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Race Prediction · Oct 25</div>
+      <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "14px", marginBottom: 20, border: "1px solid #e2e8f0" }}>
+        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Race Prediction · Oct 25</div>
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-          <div style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid #22c55e33" }}>
-            <div style={{ fontSize: 10, color: "#22c55e", marginBottom: 4 }}>A GOAL</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>3:45:00</div>
-            <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 2 }}>{secondsToPace(GOAL_A_PACE)}/km</div>
+          <div style={{ flex: 1, background: "#ffffff", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid #16a34a33" }}>
+            <div style={{ fontSize: 10, color: "#16a34a", marginBottom: 4 }}>A GOAL</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>3:45:00</div>
+            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{secondsToPace(GOAL_A_PACE)}/km</div>
           </div>
-          <div style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid #f59e0b33" }}>
-            <div style={{ fontSize: 10, color: "#f59e0b", marginBottom: 4 }}>B GOAL</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>3:52:00</div>
-            <div style={{ fontSize: 10, color: "#5a7a94", marginTop: 2 }}>{secondsToPace(GOAL_B_PACE)}/km</div>
+          <div style={{ flex: 1, background: "#ffffff", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid #d9770633" }}>
+            <div style={{ fontSize: 10, color: "#d97706", marginBottom: 4 }}>B GOAL</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>3:52:00</div>
+            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{secondsToPace(GOAL_B_PACE)}/km</div>
           </div>
           {likelihood !== null && (
-            <div style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px", textAlign: "center", border: `1px solid ${likelihoodColor}33` }}>
+            <div style={{ flex: 1, background: "#ffffff", borderRadius: 8, padding: "10px", textAlign: "center", border: `1px solid ${likelihoodColor}33` }}>
               <div style={{ fontSize: 10, color: likelihoodColor, marginBottom: 4 }}>A GOAL ODDS</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: likelihoodColor, fontFamily: "monospace" }}>{likelihood}%</div>
             </div>
           )}
         </div>
         {likelihood !== null && (
-          <div style={{ fontSize: 11, color: "#5a7a94", lineHeight: 1.5 }}>{predictionNote}</div>
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>{predictionNote}</div>
         )}
         {likelihood === null && (
-          <div style={{ fontSize: 12, color: "#3a5068" }}>Log at least 2 runs with pace and HR to see your prediction.</div>
+          <div style={{ fontSize: 12, color: "#94a3b8" }}>Log at least 2 runs with pace and HR to see your prediction.</div>
         )}
       </div>
 
@@ -1166,9 +1166,9 @@ function SummaryPanel({ runs }) {
         <StatBadge label="Total Runs" value={totalRuns} />
         <StatBadge label="Total km" value={totalKm.toFixed(1)} />
         <StatBadge label="Avg km/run" value={avgKmPerRun} />
-        <div style={{ textAlign: "center", padding: "10px 14px", background: "#0f1923", borderRadius: 8, minWidth: 80 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>4wk trend</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: trend >= 0 ? "#4ade80" : "#f87171", fontFamily: "monospace" }}>
+        <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80 }}>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>4wk trend</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: trend >= 0 ? "#16a34a" : "#dc2626", fontFamily: "monospace" }}>
             {trend >= 0 ? "+" : ""}{trend.toFixed(1)}
           </div>
         </div>
@@ -1184,7 +1184,7 @@ function SummaryPanel({ runs }) {
             unit="lbs"
             reverse={true}
           />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5a7a94", marginTop: 4, paddingLeft: 2 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", marginTop: 4, paddingLeft: 2 }}>
             <span>Start: 189 lbs</span>
             <span>Target: 180 lbs</span>
           </div>
@@ -1206,8 +1206,8 @@ function SummaryPanel({ runs }) {
 
       {/* Efficiency personal bests */}
       {runs.length >= 2 && (
-        <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Personal Bests</div>
+        <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Personal Bests</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["Easy", "Tempo", "Long"].map((t) => {
               const typeRuns = runs.filter((r) => r.type === t);
@@ -1216,24 +1216,24 @@ function SummaryPanel({ runs }) {
               const bestPct = best ? getEfficiencyPct(best) : null;
               const bestRun = best ? typeRuns.find((r) => calcEfficiency(r) === best) : null;
               const rating = bestPct ? getEfficiencyRating(bestPct) : null;
-              const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+              const typeColors = { Easy: "#16a34a", Tempo: "#d97706", Long: "#7c3aed" };
               return (
-                <div key={t} style={{ flex: 1, background: "#111d2b", borderRadius: 8, padding: "10px 8px", textAlign: "center", border: `1px solid ${typeColors[t]}33` }}>
+                <div key={t} style={{ flex: 1, background: "#ffffff", borderRadius: 8, padding: "10px 8px", textAlign: "center", border: `1px solid ${typeColors[t]}33` }}>
                   <div style={{ fontSize: 11, color: typeColors[t], marginBottom: 4 }}>{t}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: rating ? rating.color : "#3a5068", fontFamily: "monospace" }}>{bestPct ? `${bestPct}%` : "--"}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: rating ? rating.color : "#94a3b8", fontFamily: "monospace" }}>{bestPct ? `${bestPct}%` : "--"}</div>
                   {rating && <div style={{ fontSize: 10, color: rating.color, marginTop: 2 }}>{rating.label}</div>}
-                  {bestRun && <div style={{ fontSize: 9, color: "#5a7a94", marginTop: 2 }}>{bestRun.date}</div>}
+                  {bestRun && <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>{bestRun.date}</div>}
                 </div>
               );
             })}
           </div>
-          <div style={{ fontSize: 10, color: "#3a5068", marginTop: 10 }}>Easy: 95% = 6:20/km at Z2 · Tempo: 95% = predicted 10km pace · Long: 95% = predicted marathon pace</div>
+          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 10 }}>Easy: 95% = 6:20/km at Z2 · Tempo: 95% = predicted 10km pace · Long: 95% = predicted marathon pace</div>
         </div>
       )}
 
 
-      <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
-        <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Weekly km — last 12 weeks</div>
+      <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
+        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Weekly km — last 12 weeks</div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 100 }}>
           {weeks.map((w, i) => {
             const isThisWeek = i === weeks.length - 1;
@@ -1244,16 +1244,16 @@ function SummaryPanel({ runs }) {
             const longH = w.byType.Long ? (w.byType.Long / maxKm) * 88 : 0;
             return (
               <div key={w.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                <div style={{ fontSize: 9, color: isThisWeek ? "#e8f4ff" : "#3a5068", fontWeight: isThisWeek ? 700 : 400 }}>
+                <div style={{ fontSize: 9, color: isThisWeek ? "#0f172a" : "#94a3b8", fontWeight: isThisWeek ? 700 : 400 }}>
                   {w.km > 0 ? w.km.toFixed(0) : ""}
                 </div>
                 <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: 88, gap: 1 }}>
                   {longH > 0 && <div style={{ height: longH, background: typeColors.Long, borderRadius: 2, opacity: isThisWeek ? 1 : 0.7 }} />}
                   {tempoH > 0 && <div style={{ height: tempoH, background: typeColors.Tempo, borderRadius: 2, opacity: isThisWeek ? 1 : 0.7 }} />}
                   {easyH > 0 && <div style={{ height: easyH, background: typeColors.Easy, borderRadius: 2, opacity: isThisWeek ? 1 : 0.7 }} />}
-                  {w.km === 0 && <div style={{ height: 3, background: "#1e3048", borderRadius: 2 }} />}
+                  {w.km === 0 && <div style={{ height: 3, background: "#e2e8f0", borderRadius: 2 }} />}
                 </div>
-                <div style={{ fontSize: 8, color: isThisWeek ? "#7a9bb5" : "#2a3f54", textAlign: "center" }}>{w.label}</div>
+                <div style={{ fontSize: 8, color: isThisWeek ? "#64748b" : "#cbd5e1", textAlign: "center" }}>{w.label}</div>
               </div>
             );
           })}
@@ -1261,7 +1261,7 @@ function SummaryPanel({ runs }) {
         {/* Legend */}
         <div style={{ display: "flex", gap: 12, marginTop: 10, justifyContent: "center" }}>
           {Object.entries(typeColors).map(([t, c]) => (
-            <div key={t} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#7a9bb5" }}>
+            <div key={t} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#64748b" }}>
               <div style={{ width: 8, height: 8, background: c, borderRadius: 2 }} />{t}
             </div>
           ))}
@@ -1270,14 +1270,14 @@ function SummaryPanel({ runs }) {
 
       {/* RPE by type */}
       {Object.values(rpeByType).some(Boolean) && (
-        <div style={{ background: "#0f1923", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Avg RPE by run type</div>
+        <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "14px", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Avg RPE by run type</div>
           <div style={{ display: "flex", gap: 8 }}>
             {["Easy", "Tempo", "Long"].map((t) => rpeByType[t] && (
-              <div key={t} style={{ flex: 1, textAlign: "center", background: "#111d2b", borderRadius: 8, padding: "10px 8px", border: `1px solid ${typeColors[t]}33` }}>
+              <div key={t} style={{ flex: 1, textAlign: "center", background: "#ffffff", borderRadius: 8, padding: "10px 8px", border: `1px solid ${typeColors[t]}33` }}>
                 <div style={{ fontSize: 11, color: typeColors[t], marginBottom: 4 }}>{t}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#e8f4ff", fontFamily: "monospace" }}>{rpeByType[t]}</div>
-                <div style={{ fontSize: 10, color: "#5a7a94" }}>/10</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>{rpeByType[t]}</div>
+                <div style={{ fontSize: 10, color: "#94a3b8" }}>/10</div>
               </div>
             ))}
           </div>
@@ -1285,7 +1285,7 @@ function SummaryPanel({ runs }) {
       )}
 
       {runs.length === 0 && (
-        <div style={{ textAlign: "center", color: "#3a5068", padding: "40px 0", fontSize: 14 }}>
+        <div style={{ textAlign: "center", color: "#94a3b8", padding: "40px 0", fontSize: 14 }}>
           No runs logged yet. Start logging to see your summary.
         </div>
       )}
@@ -1337,46 +1337,50 @@ function PlanPanel({ runs }) {
         return (
           <div key={w.week} style={{ background: isPast ? "#f8fafc" : "#ffffff", borderRadius: 10, marginBottom: 8, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: isPast ? "none" : "0 1px 2px rgba(15,23,42,0.04)" }}>
             <div onClick={() => setOpenWeek(isOpen ? null : w.week)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color, background: color + "1a", borderRadius: 5, padding: "3px 7px", letterSpacing: "0.04em" }}>W{w.week}</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: color, borderRadius: 5, padding: "3px 8px", letterSpacing: "0.04em" }}>W{w.week}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: isPast ? "#94a3b8" : "#0f172a" }}>{w.focus}</div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{w.phase} · {fmtShortDate(weekStart)} – {fmtShortDate(weekEnd)}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: isPast ? "#94a3b8" : "#0f172a" }}>{w.focus}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginTop: 1 }}>{w.phase} · {fmtShortDate(weekStart)} – {fmtShortDate(weekEnd)}</div>
               </div>
-              <span style={{ fontSize: 13, color: "#2563eb" }}>{isOpen ? "▲" : "▼"}</span>
+              <span style={{ fontSize: 14, color: "#2563eb" }}>{isOpen ? "▲" : "▼"}</span>
             </div>
             {isOpen && (
-              <div style={{ padding: "0 14px 14px", borderTop: "1px solid #e2e8f0" }}>
+              <div style={{ padding: "0 14px 14px" }}>
                 {dates.map((session, i) => {
                   const sessionPast = session.date < today;
                   const adj = getAdjustedSession(session, runsByType[session.type] || []);
                   const typeColor = session.type === "Race" ? "#7c3aed" : (typeColors[session.type] || "#64748b");
                   return (
-                    <div key={i} style={{ marginTop: 12, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? "1px solid #f1f5f9" : "none", opacity: sessionPast ? 0.55 : 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: typeColor }}>{session.label}</div>
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>{fmtShortDate(session.date)}</div>
+                    <div key={i} style={{
+                      marginTop: 10, padding: "10px 12px",
+                      background: typeColor + "16", borderLeft: `3px solid ${typeColor}`, borderRadius: 6,
+                      opacity: sessionPast ? 0.6 : 1,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: typeColor }}>{session.label}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>{fmtShortDate(session.date)}</div>
                       </div>
-                      <div style={{ fontSize: 12, color: "#334155", marginBottom: 4 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 4 }}>
                         {session.distance && `${session.distance}km`}
                         {session.paceSec && !adj.adjusted && ` @ ${secondsToPace(session.paceSec)}/km`}
                         {adj.adjusted && (
                           <>
-                            {" "}<span style={{ textDecoration: "line-through", color: "#94a3b8" }}>{secondsToPace(session.paceSec)}/km</span>
+                            {" "}<span style={{ textDecoration: "line-through", color: "#94a3b8", fontWeight: 500 }}>{secondsToPace(session.paceSec)}/km</span>
                             {" → "}
-                            <span style={{ color: "#16a34a", fontWeight: 700 }}>{secondsToPace(adj.adjustedPaceSec)}/km</span>
+                            <span style={{ color: "#15803d", fontWeight: 800 }}>{secondsToPace(adj.adjustedPaceSec)}/km</span>
                           </>
                         )}
-                        {session.hrUnder && ` · HR < ${session.hrUnder}`}
-                        {session.hrRange && ` · HR ${session.hrRange[0]}–${session.hrRange[1]}`}
+                        {session.hrUnder && <span style={{ color: "#334155" }}> · HR &lt; {session.hrUnder}</span>}
+                        {session.hrRange && <span style={{ color: "#334155" }}> · HR {session.hrRange[0]}–{session.hrRange[1]}</span>}
                       </div>
                       {adj.adjusted && !sessionPast && (
-                        <div style={{ fontSize: 10, color: "#16a34a", marginBottom: 4 }}>↳ {adj.reason}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d", marginBottom: 4 }}>↳ {adj.reason}</div>
                       )}
                       {adj.reason && !adj.adjusted && !sessionPast && (
-                        <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>↳ {adj.reason}</div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>↳ {adj.reason}</div>
                       )}
                       {session.note && (
-                        <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>{session.note}</div>
+                        <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.45 }}>{session.note}</div>
                       )}
                     </div>
                   );
@@ -1405,7 +1409,7 @@ function App() {
     return () => window.removeEventListener("runs-updated", handler);
   }, []);
 
-  const typeColors = { Easy: "#22c55e", Tempo: "#f59e0b", Long: "#8b5cf6" };
+  const typeColors = { Easy: "#16a34a", Tempo: "#d97706", Long: "#7c3aed" };
   const totalKm = runs.reduce((a, r) => a + (parseFloat(r.distance) || 0), 0);
   const days = daysToRace();
   const trainingWeek = getTrainingWeek();
@@ -1432,35 +1436,35 @@ function App() {
   const thisWeekKm = weeklyKms[thisWeekKey] || 0;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#08111a", color: "#e8f4ff", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#f8fafc", color: "#0f172a", fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* Header */}
-      <div style={{ background: "#0b1825", borderBottom: "1px solid #1e3048", padding: "16px 20px 0" }}>
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e2e8f0", padding: "16px 20px 0" }}>
         <div style={{ maxWidth: 560, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#e8f4ff", letterSpacing: "-0.02em" }}>Training Log</div>
-              <div style={{ fontSize: 12, color: "#7a9bb5", marginTop: 2 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>Training Log</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
                 Niagara Falls Marathon · Oct 25, 2026
-                {loading && <span style={{ marginLeft: 8, color: "#3b7dd8" }}>⟳ syncing...</span>}
+                {loading && <span style={{ marginLeft: 8, color: "#2563eb" }}>⟳ syncing...</span>}
               </div>
               {trainingWeek && (
-                <div style={{ marginTop: 4, fontSize: 11, color: "#3b7dd8", fontWeight: 700, letterSpacing: "0.05em" }}>
+                <div style={{ marginTop: 4, fontSize: 11, color: "#2563eb", fontWeight: 700, letterSpacing: "0.05em" }}>
                   WEEK {trainingWeek} OF 17
                 </div>
               )}
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: days < 30 ? "#f87171" : days < 60 ? "#f59e0b" : "#3b7dd8", fontFamily: "monospace" }}>{days}</div>
-              <div style={{ fontSize: 10, color: "#7a9bb5", textTransform: "uppercase", letterSpacing: "0.08em" }}>Days to race</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: days < 30 ? "#dc2626" : days < 60 ? "#d97706" : "#2563eb", fontFamily: "monospace" }}>{days}</div>
+              <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>Days to race</div>
             </div>
           </div>
 
           {/* Stats row */}
           <div style={{ display: "flex", gap: 12, marginBottom: 12, fontSize: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ color: "#7a9bb5" }}>This week: <span style={{ color: "#e8f4ff", fontWeight: 600 }}>{thisWeekKm.toFixed(1)} km</span></div>
-            <div style={{ color: "#2a3f54" }}>|</div>
-            <div style={{ color: "#7a9bb5" }}>Total: <span style={{ color: "#e8f4ff", fontWeight: 600 }}>{totalKm.toFixed(1)} km</span></div>
-            <div style={{ color: "#2a3f54" }}>|</div>
+            <div style={{ color: "#64748b" }}>This week: <span style={{ color: "#0f172a", fontWeight: 600 }}>{thisWeekKm.toFixed(1)} km</span></div>
+            <div style={{ color: "#cbd5e1" }}>|</div>
+            <div style={{ color: "#64748b" }}>Total: <span style={{ color: "#0f172a", fontWeight: 600 }}>{totalKm.toFixed(1)} km</span></div>
+            <div style={{ color: "#cbd5e1" }}>|</div>
             {Object.entries(recentCadenceByType).some(([, v]) => v) && (
               <>
                 {["Easy", "Tempo", "Long"].map((t) => {
@@ -1471,16 +1475,16 @@ function App() {
                   const shortLabel = t === "Easy" ? "E" : t === "Tempo" ? "T" : "L";
                   return (
                     <div key={t} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 10, color: onTarget ? "#4ade80" : "#f59e0b" }}>
+                      <span style={{ fontSize: 10, color: onTarget ? "#16a34a" : "#d97706" }}>
                         {shortLabel}:{cadence}
                       </span>
-                      <div style={{ width: 24, height: 3, background: "#1e3048", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ width: `${Math.min(cadence / target, 1) * 100}%`, height: "100%", background: onTarget ? "#4ade80" : "#f59e0b", borderRadius: 2 }} />
+                      <div style={{ width: 24, height: 3, background: "#e2e8f0", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ width: `${Math.min(cadence / target, 1) * 100}%`, height: "100%", background: onTarget ? "#16a34a" : "#d97706", borderRadius: 2 }} />
                       </div>
                     </div>
                   );
                 })}
-                <div style={{ color: "#2a3f54" }}>|</div>
+                <div style={{ color: "#cbd5e1" }}>|</div>
               </>
             )}
             {SHOES.filter(s => s !== "Other").map((shoe) => {
@@ -1490,11 +1494,11 @@ function App() {
               const shortName = shoe.replace("Kayano ", "K");
               return (
                 <div key={shoe} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ color: warn ? "#f59e0b" : "#7a9bb5" }}>👟 {shortName}</span>
-                  <div style={{ width: 40, height: 4, background: "#1e3048", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ width: `${pct * 100}%`, height: "100%", background: warn ? "#f59e0b" : "#3b7dd8", borderRadius: 2 }} />
+                  <span style={{ color: warn ? "#d97706" : "#64748b" }}>👟 {shortName}</span>
+                  <div style={{ width: 40, height: 4, background: "#e2e8f0", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ width: `${pct * 100}%`, height: "100%", background: warn ? "#d97706" : "#2563eb", borderRadius: 2 }} />
                   </div>
-                  <span style={{ color: warn ? "#f59e0b" : "#5a7a94", fontSize: 11 }}>{km.toFixed(0)} km</span>
+                  <span style={{ color: warn ? "#d97706" : "#94a3b8", fontSize: 11 }}>{km.toFixed(0)} km</span>
                 </div>
               );
             })}
@@ -1504,14 +1508,14 @@ function App() {
             {[...RUN_TYPES, "Plan", "Summary"].map((t) => {
               const count = RUN_TYPES.includes(t) ? runs.filter((r) => r.type === t).length : null;
               const active = activeTab === t;
-              const color = t === "Summary" ? "#38bdf8" : t === "Plan" ? "#a78bfa" : typeColors[t];
+              const color = t === "Summary" ? "#0284c7" : t === "Plan" ? "#7c3aed" : typeColors[t];
               return (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
                   style={{
                     flex: 1, background: "none", border: "none", borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
-                    color: active ? color : "#5a7a94", padding: "8px 4px 10px", fontSize: 13, fontWeight: active ? 700 : 500,
+                    color: active ? color : "#94a3b8", padding: "8px 4px 10px", fontSize: 13, fontWeight: active ? 700 : 500,
                     cursor: "pointer", transition: "all 0.15s",
                   }}
                 >
