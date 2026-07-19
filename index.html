@@ -4,16 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Training Log · Niagara 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #f8fafc; font-family: system-ui, sans-serif; }
+    body { background: #f8fafc; font-family: 'Inter', system-ui, sans-serif; }
     input, select, textarea, button { font-family: inherit; }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #f8fafc; }
     ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 2px; }
+    .collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.25s ease; }
+    .collapse.open { grid-template-rows: 1fr; }
+    .collapse > div { overflow: hidden; }
+    .card-shadow { box-shadow: 0 1px 3px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.04); }
+    .card-shadow-lg { box-shadow: 0 4px 10px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.05); }
   </style>
 </head>
 <body>
@@ -630,14 +638,16 @@ function DualChart({ runs }) {
 }
 
 function RunCard({ run, onDelete, onEdit }) {
+  const typeAccent = { Easy: "#16a34a", Tempo: "#d97706", Long: "#7c3aed" };
   const [expanded, setExpanded] = useState(false);
   const hasSplits = run.splits?.some((s) => s);
   const zone = run.avgHR ? getHRZone(run.avgHR) : null;
   const efficiency = calcEfficiency(run);
   const effPct = efficiency ? getEfficiencyPct(efficiency) : null;
   const effRating = effPct ? getEfficiencyRating(effPct) : null;
+  const accent = typeAccent[run.type] || "#94a3b8";
   return (
-    <div style={{ background: "#ffffff", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+    <div className="card-shadow" style={{ background: "#ffffff", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #e2e8f0", borderLeft: `3px solid ${accent}` }}>
       <div
         onClick={() => setExpanded(!expanded)}
         style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer" }}
@@ -648,9 +658,10 @@ function RunCard({ run, onDelete, onEdit }) {
           {run.indoor && <span style={{ marginLeft: 6, fontSize: 11, color: "#64748b", background: "#e2e8f0", borderRadius: 4, padding: "1px 6px" }}>Indoor</span>}
         </span>
         <span style={{ fontSize: 12, color: "#64748b" }}>{run.avgPace ? `${run.avgPace}/km` : ""}</span>
-        <span style={{ fontSize: 14, color: "#2563eb" }}>{expanded ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 14, color: "#2563eb", transition: "transform 0.2s ease", display: "inline-block", transform: expanded ? "rotate(0deg)" : "rotate(0deg)" }}>{expanded ? "▲" : "▼"}</span>
       </div>
-      {expanded && (
+      <div className={`collapse${expanded ? " open" : ""}`}>
+        <div>
         <div style={{ padding: "0 14px 14px", borderTop: "1px solid #e2e8f0" }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             <StatBadge label="Avg HR" value={run.avgHR} unit="bpm" />
@@ -714,7 +725,8 @@ function RunCard({ run, onDelete, onEdit }) {
             </button>
           </div>
         </div>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -753,7 +765,7 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
   const fieldStyle = { marginBottom: 14 };
 
   return (
-    <div style={{ background: "#ffffff", borderRadius: 12, padding: 18, border: "1px solid #e2e8f0" }}>
+    <div className="card-shadow-lg" style={{ background: "#ffffff", borderRadius: 12, padding: 18, border: "1px solid #e2e8f0" }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#2563eb", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.1em" }}>
         {initialRun ? `✏️ Edit ${type} Run` : `+ New ${type} Run`}
       </div>
@@ -1182,7 +1194,7 @@ function SummaryPanel({ runs }) {
       {/* Efficiency ratings */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         {easyEff && easyEffRating && (
-          <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 10, padding: "14px", border: `1px solid ${easyEffRating.color}66`, textAlign: "center" }}>
+          <div className="card-shadow" style={{ flex: 1, background: "#ffffff", borderRadius: 10, padding: "14px", border: `1px solid ${easyEffRating.color}66`, textAlign: "center" }}>
             <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Easy Efficiency</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: easyEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{easyEff}%</div>
             <div style={{ fontSize: 12, color: easyEffRating.color, marginTop: 4 }}>{easyEffRating.label}</div>
@@ -1191,7 +1203,7 @@ function SummaryPanel({ runs }) {
           </div>
         )}
         {overallEff !== null && overallEffRating && (
-          <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 10, padding: "14px", border: `1px solid ${overallEffRating.color}66`, textAlign: "center" }}>
+          <div className="card-shadow" style={{ flex: 1, background: "#ffffff", borderRadius: 10, padding: "14px", border: `1px solid ${overallEffRating.color}66`, textAlign: "center" }}>
             <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Race Efficiency</div>
             <div style={{ fontSize: 40, fontWeight: 800, color: overallEffRating.color, fontFamily: "monospace", lineHeight: 1 }}>{overallEff}%</div>
             <div style={{ fontSize: 12, color: overallEffRating.color, marginTop: 4 }}>{overallEffRating.label}</div>
@@ -1408,7 +1420,7 @@ function PlanPanel({ runs }) {
         const isOpen = openWeek === w.week;
 
         return (
-          <div key={w.week} style={{ background: isPast ? "#f8fafc" : "#ffffff", borderRadius: 10, marginBottom: 8, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: isPast ? "none" : "0 1px 2px rgba(15,23,42,0.04)" }}>
+          <div key={w.week} className={isPast ? "" : "card-shadow"} style={{ background: isPast ? "#f8fafc" : "#ffffff", borderRadius: 10, marginBottom: 8, border: "1px solid #e2e8f0", overflow: "hidden" }}>
             <div onClick={() => setOpenWeek(isOpen ? null : w.week)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer" }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: color, borderRadius: 5, padding: "3px 8px", letterSpacing: "0.04em" }}>W{w.week}</div>
               <div style={{ flex: 1 }}>
@@ -1417,7 +1429,8 @@ function PlanPanel({ runs }) {
               </div>
               <span style={{ fontSize: 14, color: "#2563eb" }}>{isOpen ? "▲" : "▼"}</span>
             </div>
-            {isOpen && (
+            <div className={`collapse${isOpen ? " open" : ""}`}>
+              <div>
               <div style={{ padding: "0 14px 14px" }}>
                 {dates.map((session, i) => {
                   const sessionPast = session.date < today;
@@ -1459,7 +1472,8 @@ function PlanPanel({ runs }) {
                   );
                 })}
               </div>
-            )}
+              </div>
+            </div>
           </div>
         );
       })}
@@ -1527,8 +1541,29 @@ function App() {
               )}
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: days < 30 ? "#dc2626" : days < 60 ? "#d97706" : "#2563eb", fontFamily: "monospace" }}>{days}</div>
-              <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>Days to race</div>
+              {(() => {
+                const totalPlanDays = Math.round((RACE_DATE - PLAN_START) / 86400000);
+                const elapsedDays = totalPlanDays - days;
+                const progress = Math.min(Math.max(elapsedDays / totalPlanDays, 0), 1);
+                const ringColor = days < 30 ? "#dc2626" : days < 60 ? "#d97706" : "#2563eb";
+                const size = 58, sw = 5, r = (size - sw) / 2, circ = 2 * Math.PI * r;
+                return (
+                  <div style={{ position: "relative", width: size, height: size }}>
+                    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+                      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={sw} />
+                      <circle
+                        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ringColor} strokeWidth={sw}
+                        strokeDasharray={circ} strokeDashoffset={circ * (1 - progress)} strokeLinecap="round"
+                        style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                      />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ fontSize: 17, fontWeight: 700, color: ringColor, fontFamily: "monospace", lineHeight: 1 }}>{days}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 2 }}>Days to race</div>
             </div>
           </div>
 
