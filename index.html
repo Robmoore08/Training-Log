@@ -104,6 +104,7 @@ async function deleteRunFromSheet(id) {
 }
 
 const RACE_DATE = new Date("2026-10-25");
+const PLAN_START = new Date("2026-06-29"); // Week 1 starts Mon Jun 29 (per official 17-week plan)
 
 function daysToRace() {
   const today = new Date();
@@ -113,7 +114,6 @@ function daysToRace() {
 }
 
 function getTrainingWeek() {
-  const PLAN_START = new Date("2026-07-06"); // Week 1 starts July 6
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = Math.floor((today - PLAN_START) / (1000 * 60 * 60 * 24 * 7));
@@ -183,6 +183,126 @@ const TARGET_PCT = 95;
 
 // Cadence targets by run type
 const CADENCE_TARGETS = { Easy: 166, Long: 168, Tempo: 170 };
+
+// ---- 17-Week Plan schedule (source of truth: Niagara Falls Marathon plan) ----
+// Day offsets from each week's Monday: Mon=0 Tue=1 Wed=2 Thu=3 Fri=4 Sat=5 Sun=6
+// paceSec = target pace in sec/km (adjustable), hrUnder/hrRange = HR target (fixed, safety-based, never adjusted)
+const PLAN_WEEKS = [
+  { week: 1, phase: "Base", focus: "Return to structure", sessions: [
+    { day: 5, type: "Easy", label: "Easy Run", distance: 6, hrUnder: 135, note: "First run of marathon build. 160 bpm playlist." },
+    { day: 6, type: "Long", label: "Long Run", distance: 14, hrUnder: 140, note: "Conservative — first long run of block." },
+  ]},
+  { week: 2, phase: "Base", focus: "Introduce Wednesday tempo", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 8, paceSec: 320, hrRange: [148, 158], note: "2km wu + 4km @ 5:20/km + 2km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 135, note: "162 bpm playlist. Note cadence." },
+    { day: 6, type: "Long", label: "Long Run", distance: 16, hrUnder: 142, note: "5:30–5:45/km" },
+  ]},
+  { week: 3, phase: "Base", focus: "Build long run confidence", sessions: [
+    { day: 2, type: "Tempo", label: "Intervals", distance: 8, paceSec: 300, hrRange: [158, 165], note: "1km wu + 5×1km @ 5:00/km, 90s rest + 1km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 135, note: "162 bpm playlist" },
+    { day: 6, type: "Long", label: "Long Run", distance: 18, hrUnder: 144, note: "5:30–5:40/km, last 3km nudge to 5:19/km if strong" },
+  ]},
+  { week: 4, phase: "Cutback", focus: "Cutback — absorb weeks 1–3", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 8, paceSec: 320, hrUnder: 155, note: "2km wu + 4km @ 5:20/km + 2km cd, reduced effort" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 6, hrUnder: 132, note: "Genuinely easy, no pace pressure" },
+    { day: 6, type: "Long", label: "Long Run", distance: 14, hrUnder: 140, note: "No pressure, conversational pace" },
+  ]},
+  { week: 5, phase: "Build", focus: "First 20km long run", sessions: [
+    { day: 2, type: "Tempo", label: "Intervals", distance: 8, paceSec: 300, hrRange: [160, 168], note: "1km wu + 6×1km @ 5:00/km, 90s rest + 1km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 136, note: "165 bpm playlist. Target cadence 162." },
+    { day: 6, type: "Long", label: "Long Run", distance: 20, hrUnder: 145, note: "5:25–5:40/km. First 20km of the block." },
+  ]},
+  { week: 6, phase: "Build", focus: "Marathon pace work begins", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 12, paceSec: 319, hrRange: [148, 158], note: "2km wu + 8km @ 5:19/km + 2km cd. First sustained marathon pace session." },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 10, hrUnder: 137, note: "165 bpm playlist" },
+    { day: 6, type: "Long", label: "Long Run", distance: 22, hrUnder: 147, note: "Last 4km @ 5:19/km. Finish strong." },
+  ]},
+  { week: 7, phase: "Cutback", focus: "Cutback — recover and absorb", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 9, paceSec: 319, note: "2km wu + 5km @ 5:19/km + 2km cd, reduced volume" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 134 },
+    { day: 6, type: "Long", label: "Long Run", distance: 16, hrUnder: 142, note: "No pressure, conversational" },
+  ]},
+  { week: 8, phase: "Build", focus: "Introduce race fuelling", sessions: [
+    { day: 2, type: "Tempo", label: "Intervals", distance: 8, paceSec: 295, hrRange: [162, 170], note: "1km wu + 6×1km @ 4:55/km, 90s rest + 1km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 10, hrUnder: 137, note: "165 bpm playlist" },
+    { day: 6, type: "Long", label: "Long Run", distance: 24, hrUnder: 147, note: "Gel @ 45min, 90min. First fuelling practice." },
+  ]},
+  { week: 9, phase: "Build", focus: "Build to 26km", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 14, paceSec: 319, hrRange: [148, 158], note: "2km wu + 10km @ 5:19/km + 2km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 10, hrUnder: 137, note: "166 bpm playlist. Target cadence 164." },
+    { day: 6, type: "Long", label: "Long Run", distance: 26, hrUnder: 148, note: "Gel every 45min from km10. Last 5km @ 5:19/km. Beyond half marathon for first time." },
+  ]},
+  { week: 10, phase: "Cutback", focus: "Cutback — absorb the build", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 10, paceSec: 319, note: "2km wu + 6km @ 5:19/km + 2km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 134 },
+    { day: 6, type: "Long", label: "Long Run", distance: 18, hrUnder: 143, note: "Gel practice. Conversational." },
+  ]},
+  { week: 11, phase: "Peak", focus: "28km — entering new territory", sessions: [
+    { day: 2, type: "Tempo", label: "Intervals", distance: 10, paceSec: 295, hrRange: [162, 172], note: "1km wu + 8×1km @ 4:55/km, 90s rest + 1km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 10, hrUnder: 137, note: "167 bpm playlist. Target cadence 165." },
+    { day: 6, type: "Long", label: "Long Run", distance: 28, hrUnder: 150, note: "Gel every 40min from km10. Last 6km @ 5:19/km. Wall zone starts here." },
+  ]},
+  { week: 12, phase: "Peak", focus: "30km — the defining run", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 14, paceSec: 319, hrRange: [150, 160], note: "2km wu + 10km @ 5:19/km + 2km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 10, hrUnder: 136, note: "No weights today — protect Sunday" },
+    { day: 6, type: "Long", label: "Long Run", distance: 30, hrUnder: 152, note: "Gel every 40min. Drink every 5km. Most important training run of the block." },
+  ]},
+  { week: 13, phase: "Cutback", focus: "Cutback — absorb the peak", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 10, paceSec: 319, note: "2km wu + 6km @ 5:19/km + 2km cd" },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 134 },
+    { day: 6, type: "Long", label: "Long Run", distance: 20, hrUnder: 144, note: "Gel practice. Conversational. 30km still in the legs." },
+  ]},
+  { week: 14, phase: "Final Peak", focus: "32km — the final long run", sessions: [
+    { day: 2, type: "Tempo", label: "Intervals", distance: 8, paceSec: 295, note: "1km wu + 6×1km @ 4:55/km, 90s rest + 1km cd. Sharp, not exhausted." },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 134, note: "No weights — protect Sunday" },
+    { day: 6, type: "Long", label: "Long Run", distance: 32, hrUnder: 153, note: "Gel every 40min. Last 8km @ 5:19. Dress rehearsal — same shoes/kit/nutrition as race day." },
+  ]},
+  { week: 15, phase: "Final Peak", focus: "Last quality week", sessions: [
+    { day: 2, type: "Tempo", label: "Tempo", distance: 12, paceSec: 319, hrRange: [148, 158], note: "2km wu + 8km @ 5:19/km + 2km cd. Last hard session." },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 10, hrUnder: 136, note: "168 bpm playlist. Last double-digit run." },
+    { day: 6, type: "Long", label: "Long Run", distance: 22, hrUnder: 145, note: "Comfortable finish. Taper starts next week." },
+  ]},
+  { week: 16, phase: "Taper", focus: "Taper — legs get fresh", sessions: [
+    { day: 2, type: "Easy", label: "Strides", distance: 5, hrUnder: 145, note: "5km easy + 6×30s at race pace (5:19/km). Stay sharp, not tired." },
+    { day: 5, type: "Easy", label: "Easy Run", distance: 8, hrUnder: 134, note: "Enjoy it" },
+    { day: 6, type: "Long", label: "Long Run", distance: 16, hrUnder: 142, note: "Comfortable throughout. Last long run before race day." },
+  ]},
+  { week: 17, phase: "Race", focus: "Race Week", sessions: [
+    { day: 1, type: "Easy", label: "Easy", distance: 5, note: "5km easy + 4×30s strides at race pace. Last real run." },
+    { day: 3, type: "Easy", label: "Shakeout", distance: 4, note: "Very easy shakeout. Should feel almost too easy." },
+    { day: 6, type: "Race", label: "RACE DAY", distance: 42.2, paceSec: 319, note: "A goal 3:45:00 (5:19/km avg). Km1–10 5:30/km HR<148 · Km10–30 5:19/km HR<158 · Km30–42 empty the tank. Gel @ km10,18,26,34." },
+  ]},
+];
+
+function planWeekDates(week) {
+  const monday = new Date(PLAN_START.getTime() + (week.week - 1) * 7 * 86400000);
+  return week.sessions.map((s) => {
+    const d = new Date(monday.getTime() + s.day * 86400000);
+    return { ...s, date: d };
+  });
+}
+function fmtShortDate(d) {
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+// Adjust a session's pace target based on current-form efficiency for that run type.
+// HR targets are NEVER adjusted — they're safety/pacing-discipline boundaries, not fitness targets.
+// Clamped to +/-10% so a small sample can't swing the plan wildly.
+function getAdjustedSession(session, runsOfType) {
+  if (!session.paceSec || (session.type !== "Tempo" && session.type !== "Long")) {
+    return { ...session, adjusted: false };
+  }
+  const scores = runsOfType.map((r) => calcEfficiency(r)).filter((s) => s !== null);
+  if (scores.length < 2) return { ...session, adjusted: false, reason: "Not enough logged runs yet — showing plan default" };
+  const currentFormPct = getRollingEfficiencyPct(runsOfType);
+  if (currentFormPct === null) return { ...session, adjusted: false };
+  const factor = Math.min(Math.max(currentFormPct / TARGET_PCT, 0.9), 1.1);
+  const adjustedPaceSec = Math.round(session.paceSec / factor);
+  const reason = currentFormPct >= TARGET_PCT
+    ? `${session.type} current form ${currentFormPct}% → target tightened`
+    : `${session.type} current form ${currentFormPct}% → target eased`;
+  return { ...session, adjusted: adjustedPaceSec !== session.paceSec, adjustedPaceSec, reason };
+}
 
 function calcEfficiency(run) {
   const pace = paceToSeconds(run.avgPace);
@@ -1173,6 +1293,103 @@ function SummaryPanel({ runs }) {
   );
 }
 
+function PlanPanel({ runs }) {
+  const typeColors = { Easy: "#16a34a", Tempo: "#d97706", Long: "#7c3aed" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const runsByType = { Easy: [], Tempo: [], Long: [] };
+  runs.forEach((r) => { if (runsByType[r.type]) runsByType[r.type].push(r); });
+
+  const phaseColors = {
+    Base: "#2563eb", Cutback: "#64748b", Build: "#d97706",
+    Peak: "#dc2626", "Final Peak": "#dc2626", Taper: "#16a34a", Race: "#7c3aed",
+  };
+
+  const [openWeek, setOpenWeek] = useState(null);
+
+  useEffect(() => {
+    // auto-open current week on first load
+    for (const w of PLAN_WEEKS) {
+      const dates = planWeekDates(w);
+      if (dates.some((s) => s.date >= today && s.date <= new Date(today.getTime() + 7 * 86400000))) {
+        setOpenWeek(w.week);
+        break;
+      }
+    }
+    // eslint-disable-next-line
+  }, []);
+
+  return (
+    <div style={{ background: "#ffffff", borderRadius: 14, padding: 14, margin: "-6px -4px" }}>
+      <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "12px 14px", marginBottom: 16, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569", lineHeight: 1.5 }}>
+        Pace targets adjust automatically as your logged efficiency changes — HR targets stay fixed since they're safety and pacing-discipline boundaries, not fitness goals. Adjustments are capped at ±10% and need at least 2 logged runs of a type to kick in.
+      </div>
+
+      {PLAN_WEEKS.map((w) => {
+        const dates = planWeekDates(w);
+        const weekEnd = dates[dates.length - 1].date;
+        const weekStart = dates[0].date;
+        const isPast = weekEnd < today;
+        const color = phaseColors[w.phase] || "#2563eb";
+        const isOpen = openWeek === w.week;
+
+        return (
+          <div key={w.week} style={{ background: isPast ? "#f8fafc" : "#ffffff", borderRadius: 10, marginBottom: 8, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: isPast ? "none" : "0 1px 2px rgba(15,23,42,0.04)" }}>
+            <div onClick={() => setOpenWeek(isOpen ? null : w.week)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color, background: color + "1a", borderRadius: 5, padding: "3px 7px", letterSpacing: "0.04em" }}>W{w.week}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: isPast ? "#94a3b8" : "#0f172a" }}>{w.focus}</div>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{w.phase} · {fmtShortDate(weekStart)} – {fmtShortDate(weekEnd)}</div>
+              </div>
+              <span style={{ fontSize: 13, color: "#2563eb" }}>{isOpen ? "▲" : "▼"}</span>
+            </div>
+            {isOpen && (
+              <div style={{ padding: "0 14px 14px", borderTop: "1px solid #e2e8f0" }}>
+                {dates.map((session, i) => {
+                  const sessionPast = session.date < today;
+                  const adj = getAdjustedSession(session, runsByType[session.type] || []);
+                  const typeColor = session.type === "Race" ? "#7c3aed" : (typeColors[session.type] || "#64748b");
+                  return (
+                    <div key={i} style={{ marginTop: 12, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? "1px solid #f1f5f9" : "none", opacity: sessionPast ? 0.55 : 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: typeColor }}>{session.label}</div>
+                        <div style={{ fontSize: 10, color: "#94a3b8" }}>{fmtShortDate(session.date)}</div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#334155", marginBottom: 4 }}>
+                        {session.distance && `${session.distance}km`}
+                        {session.paceSec && !adj.adjusted && ` @ ${secondsToPace(session.paceSec)}/km`}
+                        {adj.adjusted && (
+                          <>
+                            {" "}<span style={{ textDecoration: "line-through", color: "#94a3b8" }}>{secondsToPace(session.paceSec)}/km</span>
+                            {" → "}
+                            <span style={{ color: "#16a34a", fontWeight: 700 }}>{secondsToPace(adj.adjustedPaceSec)}/km</span>
+                          </>
+                        )}
+                        {session.hrUnder && ` · HR < ${session.hrUnder}`}
+                        {session.hrRange && ` · HR ${session.hrRange[0]}–${session.hrRange[1]}`}
+                      </div>
+                      {adj.adjusted && !sessionPast && (
+                        <div style={{ fontSize: 10, color: "#16a34a", marginBottom: 4 }}>↳ {adj.reason}</div>
+                      )}
+                      {adj.reason && !adj.adjusted && !sessionPast && (
+                        <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>↳ {adj.reason}</div>
+                      )}
+                      {session.note && (
+                        <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>{session.note}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState("Easy");
   const [runs, setRuns] = useState(loadRuns());
@@ -1284,10 +1501,10 @@ function App() {
           </div>
           {/* Tabs */}
           <div style={{ display: "flex", gap: 4 }}>
-            {[...RUN_TYPES, "Summary"].map((t) => {
+            {[...RUN_TYPES, "Plan", "Summary"].map((t) => {
               const count = RUN_TYPES.includes(t) ? runs.filter((r) => r.type === t).length : null;
               const active = activeTab === t;
-              const color = t === "Summary" ? "#38bdf8" : typeColors[t];
+              const color = t === "Summary" ? "#38bdf8" : t === "Plan" ? "#a78bfa" : typeColors[t];
               return (
                 <button
                   key={t}
@@ -1309,7 +1526,8 @@ function App() {
       {/* Content */}
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 16px 40px" }}>
         {activeTab === "Summary" && <SummaryPanel runs={runs} />}
-        {activeTab !== "Summary" && <RunTypePanel key={activeTab} type={activeTab} runs={runs.filter((r) => r.type === activeTab)} />}
+        {activeTab === "Plan" && <PlanPanel runs={runs} />}
+        {activeTab !== "Summary" && activeTab !== "Plan" && <RunTypePanel key={activeTab} type={activeTab} runs={runs.filter((r) => r.type === activeTab)} />}
       </div>
     </div>
   );
