@@ -179,7 +179,7 @@ const TARGET_HR = 155;
 // Efficiency targets at 95%:
 // Easy: Z2 midpoint 119 bpm at 6:20/km (380 sec) — higher score = better
 const EASY_TARGET_PACE = 380; // sec/km
-const EASY_TARGET_HR = 119; // bpm
+const EASY_TARGET_HR = 133; // bpm — midpoint of Z2 Easy/Aerobic (128-138)
 
 // Tempo: A goal 10km pace at 155 bpm, reference distance 10km
 const TEMPO_TARGET = GOAL_10K_PACE / (TARGET_HR * 1.0); // ~1.890
@@ -394,10 +394,10 @@ function getEfficiencyRating(pct) {
 function getHRZone(hr) {
   const h = parseInt(hr);
   if (!h) return null;
-  if (h < 108) return { zone: "Z1", label: "Recovery", color: "#2563eb" };
-  if (h < 130) return { zone: "Z2", label: "Easy/Aerobic", color: "#16a34a" };
+  if (h < 128) return { zone: "Z1", label: "Recovery", color: "#2563eb" };
+  if (h < 138) return { zone: "Z2", label: "Easy/Aerobic", color: "#16a34a" };
   if (h < 148) return { zone: "Z3", label: "Steady/Long Run", color: "#d97706" };
-  if (h < 162) return { zone: "Z4", label: "Marathon Zone", color: "#ea580c" };
+  if (h < 162) return { zone: "Z4", label: "Marathon/Threshold", color: "#ea580c" };
   return { zone: "Z5", label: "Max/Intervals", color: "#dc2626" };
 }
 
