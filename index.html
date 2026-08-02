@@ -179,7 +179,7 @@ const TARGET_HR = 155;
 // Efficiency targets at 95%:
 // Easy: Z2 midpoint 119 bpm at 6:20/km (380 sec) — higher score = better
 const EASY_TARGET_PACE = 331; // sec/km (5:31/km) — best logged Easy run (Aug 1 2026)
-const EASY_TARGET_HR = 134; // bpm — same run, matches new Z2 range (128-138)
+const EASY_TARGET_HR = 130; // bpm — Aug 1 run's heat/elevation-ADJUSTED HR (raw 134, adjusted ~129.7)
 
 // Tempo: A goal 10km pace at 155 bpm, reference distance 10km
 const TEMPO_TARGET = GOAL_10K_PACE / (TARGET_HR * 1.0); // ~1.890
@@ -322,6 +322,11 @@ function calcEfficiency(run) {
   const temp = parseFloat(run.temperature) || 15;
   const heatAdj = Math.max(0, temp - 15) * 1.0;
 
+  // Humidity adjustment — only matters once it's warm enough for evaporative cooling
+  // to be under stress; reduce effective HR by 0.03 bpm per % RH above 50%.
+  const humidity = parseFloat(run.humidity) || 50;
+  const humidityAdj = temp > 20 ? Math.max(0, humidity - 50) * 0.03 : 0;
+
   // Elevation adjustment — add 1 bpm per 10m gain per km
   const gain = parseFloat(run.elevationGain) || 0;
   const gainPerKm = gain / dist;
@@ -330,7 +335,7 @@ function calcEfficiency(run) {
   // Indoor adjustment — treadmill HR slightly lower, add 2 bpm to normalise
   const indoorAdj = (run.indoor === true || run.indoor === "true") ? 2 : 0;
 
-  const adjustedHR = hr - heatAdj - elevAdj + indoorAdj;
+  const adjustedHR = hr - heatAdj - humidityAdj - elevAdj + indoorAdj;
   if (adjustedHR <= 0) return null;
 
   if (run.type === "Easy") {
