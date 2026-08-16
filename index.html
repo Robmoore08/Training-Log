@@ -111,8 +111,8 @@ async function deleteRunFromSheet(id) {
   }
 }
 
-const RACE_DATE = new Date("2026-10-25");
-const PLAN_START = new Date("2026-06-29"); // Week 1 starts Mon Jun 29 (per official 17-week plan)
+const RACE_DATE = new Date(2026, 9, 25); // Oct 25, 2026 — local time, avoids UTC string-parse day-shift
+const PLAN_START = new Date(2026, 5, 29); // Week 1 starts Mon Jun 29 (per official 17-week plan) — local time
 
 function daysToRace() {
   const today = new Date();
