@@ -47,6 +47,8 @@ const emptyRun = (type) => ({
   avgHR: "",
   maxHR: "",
   avgCadence: "",
+  avgVO: "",
+  avgGCT: "",
   avgPace: "",
   elevationGain: "",
   splits: ["", "", "", "", ""],
@@ -111,8 +113,8 @@ async function deleteRunFromSheet(id) {
   }
 }
 
-const RACE_DATE = new Date("2026-10-25");
-const PLAN_START = new Date("2026-06-29"); // Week 1 starts Mon Jun 29 (per official 17-week plan)
+const RACE_DATE = new Date(2026, 9, 25); // Oct 25, 2026 — local time, avoids UTC string-parse day-shift
+const PLAN_START = new Date(2026, 5, 29); // Week 1 starts Mon Jun 29 (per official 17-week plan) — local time
 
 function daysToRace() {
   const today = new Date();
@@ -432,6 +434,41 @@ function secondsToPace(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+// Stride length is derived from pace and cadence, not logged separately —
+// scoring it alongside cadence would double-count the same underlying signal.
+function strideLength(pace, cadence) {
+  const paceSec = typeof pace === "string" ? paceToSeconds(pace) : pace;
+  const cad = parseFloat(cadence);
+  if (!paceSec || !cad) return null;
+  const speedMPerMin = 60000 / paceSec; // meters per minute
+  return speedMPerMin / cad; // meters per step
+}
+
+// ---- Form Score: vertical oscillation, ground contact time, cadence ----
+// NOTE: these reference values are general recreational-to-competitive benchmarks,
+// used as a starting point only — same approach as the original Easy pace/HR targets.
+// Once a handful of real runs per type are logged, these should be recalibrated
+// off Robbie's own best sessions, the same way EASY_TARGET_PACE/HR were.
+const FORM_TARGET_VO = 7.0; // cm — lower is better
+const FORM_TARGET_GCT = 240; // ms — lower is better
+
+function calcFormScore(run) {
+  const vo = parseFloat(run.avgVO);
+  const gct = parseFloat(run.avgGCT);
+  const cadence = parseFloat(run.avgCadence);
+  if (!vo && !gct && !cadence) return null;
+
+  const cadenceTarget = CADENCE_TARGETS[run.type] || 166;
+  const parts = [];
+  if (vo) parts.push(Math.min(FORM_TARGET_VO / vo, 1.15));
+  if (gct) parts.push(Math.min(FORM_TARGET_GCT / gct, 1.15));
+  if (cadence) parts.push(Math.min(cadence / cadenceTarget, 1.15));
+  if (!parts.length) return null;
+
+  const avgRatio = parts.reduce((a, b) => a + b, 0) / parts.length;
+  return Math.round(avgRatio * TARGET_PCT);
+}
+
 function StatBadge({ label, value, unit = "" }) {
   return (
     <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80 }}>
@@ -650,6 +687,9 @@ function RunCard({ run, onDelete, onEdit }) {
   const efficiency = calcEfficiency(run);
   const effPct = efficiency ? getEfficiencyPct(efficiency) : null;
   const effRating = effPct ? getEfficiencyRating(effPct) : null;
+  const formPct = calcFormScore(run);
+  const formRating = formPct ? getEfficiencyRating(formPct) : null;
+  const stride = strideLength(run.avgPace, run.avgCadence);
   const accent = typeAccent[run.type] || "#64748b";
   return (
     <div className="card-shadow" style={{ background: "#ffffff", borderRadius: 10, marginBottom: 10, overflow: "hidden", border: "1px solid #e2e8f0", borderLeft: `3px solid ${accent}` }}>
@@ -673,6 +713,9 @@ function RunCard({ run, onDelete, onEdit }) {
             <StatBadge label="Max HR" value={run.maxHR} unit="bpm" />
             <StatBadge label="Cadence" value={run.avgCadence} unit="spm" />
             <StatBadge label="Elevation" value={run.elevationGain} unit="m" />
+            {run.avgVO && <StatBadge label="Vert. Osc." value={run.avgVO} unit="cm" />}
+            {run.avgGCT && <StatBadge label="Gnd Contact" value={run.avgGCT} unit="ms" />}
+            {stride && <StatBadge label="Stride" value={stride.toFixed(2)} unit="m" />}
             {run.rpe && <StatBadge label="RPE" value={`${run.rpe}/10`} />}
             {zone && (
               <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80, border: `1px solid ${zone.color}80` }}>
@@ -686,6 +729,13 @@ function RunCard({ run, onDelete, onEdit }) {
                 <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Efficiency</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: effRating.color }}>{effPct}%</div>
                 <div style={{ fontSize: 10, color: effRating.color, opacity: 0.8 }}>{effRating.label}</div>
+              </div>
+            )}
+            {formPct && formRating && (
+              <div style={{ textAlign: "center", padding: "10px 14px", background: "#f1f5f9", borderRadius: 8, minWidth: 80, border: `1px solid ${formRating.color}80` }}>
+                <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Form</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: formRating.color }}>{formPct}%</div>
+                <div style={{ fontSize: 10, color: formRating.color, opacity: 0.8 }}>{formRating.label}</div>
               </div>
             )}
           </div>
@@ -824,6 +874,22 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
         <div style={fieldStyle}>
           <label style={labelStyle}>Avg Cadence (spm)</label>
           <input type="number" style={inputStyle} value={form.avgCadence} onChange={(e) => set("avgCadence", e.target.value)} placeholder="e.g. 174" />
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Vertical Osc. (cm)</label>
+          <input type="number" step="0.1" style={inputStyle} value={form.avgVO} onChange={(e) => set("avgVO", e.target.value)} placeholder="e.g. 7.2" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Ground Contact (ms)</label>
+          <input type="number" style={inputStyle} value={form.avgGCT} onChange={(e) => set("avgGCT", e.target.value)} placeholder="e.g. 235" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Stride Length</label>
+          <div style={{ ...inputStyle, display: "flex", alignItems: "center", color: "#64748b", background: "#f8fafc" }}>
+            {form.avgPace && form.avgCadence ? `${strideLength(form.avgPace, form.avgCadence).toFixed(2)} m` : "auto"}
+          </div>
         </div>
       </div>
 
