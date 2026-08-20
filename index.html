@@ -51,7 +51,7 @@ const emptyRun = (type) => ({
   avgGCT: "",
   avgPace: "",
   elevationGain: "",
-  splits: ["", "", "", "", ""],
+  splits: ["", "", "", "", "", "", "", ""],
   shoe: "",
   temperature: "",
   humidity: "",
@@ -434,6 +434,14 @@ function secondsToPace(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+function avgSplitPace(splits) {
+  if (!splits) return null;
+  const secs = splits.map((s) => paceToSeconds(s)).filter((s) => s !== null);
+  if (!secs.length) return null;
+  const avg = secs.reduce((a, b) => a + b, 0) / secs.length;
+  return secondsToPace(avg);
+}
+
 // Stride length is derived from pace and cadence, not logged separately —
 // scoring it alongside cadence would double-count the same underlying signal.
 function strideLength(pace, cadence) {
@@ -741,13 +749,20 @@ function RunCard({ run, onDelete, onEdit }) {
           </div>
           {hasSplits && (
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Splits</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em" }}>Splits</div>
+                {avgSplitPace(run.splits) && (
+                  <div style={{ fontSize: 11, color: "#475569" }}>
+                    Avg: <span style={{ color: "#0f172a", fontWeight: 700 }}>{avgSplitPace(run.splits)}/km</span>
+                  </div>
+                )}
+              </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {run.splits.filter((s) => s).map((s, i) => (
+                {run.splits.map((s, i) => s ? (
                   <div key={i} style={{ background: "#f1f5f9", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#0f172a", fontFamily: "monospace" }}>
                     {i + 1}: {s}
                   </div>
-                ))}
+                ) : null)}
               </div>
             </div>
           )}
@@ -787,7 +802,12 @@ function RunCard({ run, onDelete, onEdit }) {
 }
 
 function RunForm({ type, onSave, onCancel, initialRun }) {
-  const [form, setForm] = useState(initialRun || emptyRun(type));
+  const [form, setForm] = useState(() => {
+    const base = initialRun || emptyRun(type);
+    const splits = [...(base.splits || [])];
+    while (splits.length < 8) splits.push("");
+    return { ...base, splits };
+  });
 
   const set = (field, val) => setForm((f) => ({ ...f, [field]: val }));
   const setSplit = (i, val) => {
@@ -911,7 +931,7 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
       {type === "Tempo" && (
         <div style={fieldStyle}>
           <label style={labelStyle}>Splits (min:sec/km)</label>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
             {form.splits.map((s, i) => (
               <div key={i}>
                 <div style={{ fontSize: 10, color: "#64748b", textAlign: "center", marginBottom: 3 }}>km {i + 1}</div>
@@ -919,6 +939,11 @@ function RunForm({ type, onSave, onCancel, initialRun }) {
               </div>
             ))}
           </div>
+          {avgSplitPace(form.splits) && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#475569", textAlign: "right" }}>
+              Avg split pace: <span style={{ color: "#0f172a", fontWeight: 700 }}>{avgSplitPace(form.splits)}/km</span>
+            </div>
+          )}
         </div>
       )}
 
